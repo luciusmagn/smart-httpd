@@ -2,9 +2,18 @@
 (import :std/error
         :std/sugar
         :std/net/httpd
-        :std/misc/uuid)
+        :std/misc/uuid
+        :std/srfi/9)
 (export #t)
 
+(define-record-type <rejection>
+  (rejection type msg)
+  rejection?
+  (type rejection-type)
+  (msg rejection-msg))
+
+;; handler conversions
+;; :> is identity, because we always need something
 (define (:> x)         x)
 (define  :>string      :>) ; yeah
 (define  :>number      string->number)
@@ -26,13 +35,26 @@
          elem))
 
      ;; actual implementation
-     (let ((var (conv (pop-ptr))) ...)
-       (let ((body (bconv body-data)))
-         statements)
-       statements* ...))))
+     (call/cc
+       (lambda (reject)
+         (define (validate converted)
+           (cond
+            ;; TODO: decide if we want to make a nicer rejection
+            ((boolean?   converted) (when (not converted) (reject converted)))
+            ((rejection? converted) (reject converted))
+            (else converted)))
 
-;;(define add-two
-;;  (handler ((x :>number) (y :>number)) <- (_ :>)
-;;           (displayln x)
-;;           (displayln y)))
-;;           (+ x y)))
+         ;; catch possible exceptions
+         ;; most-likely missing arguments
+         (try
+          (let ((var (validate (conv (pop-ptr)))) ...)
+            (let ((body (bconv body-data)))
+              statements
+              statements* ...))
+          (catch (e) (reject (rejection 'exception "An exception was caught")))))))))
+
+(define add-two
+  (handler ((x :>number) (y :>number)) <- (_ :>)
+           (displayln x)
+           (displayln y)
+           (+ x y)))
