@@ -47,8 +47,7 @@
             ((rejection? converted) (reject converted))
             (else converted)))
 
-         ;; catch possible exceptions
-         ;; most-likely missing arguments
+         ;; catch possible exceptions, most-likely missing arguments
          (try
           (let ((var (validate (conv (pop-ptr)))) ...)
             (let ((body (bconv body-data)))
@@ -62,31 +61,12 @@
            (displayln y)
            (+ x y)))
 
-(define (extract-params pattern url)
-  (define pat-parts
-    (filter (lambda (x) (not (equal? x "")))
-            (string-split pattern #\/)))
-  (define url-parts
-    (filter (lambda (x) (not (equal? x "")))
-            (string-split url #\/)))
-
-  (if (not (= (length pat-parts) (length url-parts)))
-    (rejection 'mismatched "Wrong number of URL segments")
-    (filter-map (lambda (pat url-part)
-                  (and (char=? (string-ref pat 0) #\:)
-                       url-part))
-                pat-parts
-                url-parts)))
-
-;; (extract-params "/add/:x/:y" "/add/2")      => rejection
-;; (extract-params "/add/:x/:y" "/add/2/3")    => ("2" "3")
-
 (define-record-type <route-tree>
-  (route-tree   segment-type children handler)
+  (route-tree segment children handlers)
   route-tree?
-  (segment-type route-tree-segment-type)
-  (children     route-tree-children)
-  (handler      route-tree-handler))
+  (segment    route-tree-segment)
+  (children   route-tree-children)
+  (handlers   route-tree-handlers))
 
 (define-record-type <segment-exact>
   (segment-exact   name)
@@ -110,7 +90,10 @@
       (segment-dynamic segment)
       (segment-exact   segment)))
 
-  (let* ((segments (string-split path #\/))
+  (let* ((cleaned  (if (string-prefix? "/" path)
+                     (list->string (cdr (string->list path)))
+                     path))
+         (segments (string-split cleaned #\/))
          (parsed   (map parse segments)))
     parsed))
 
@@ -132,62 +115,90 @@
       (print-path (cdr path)))))
 
 (define (build-route-tree routes)
+  (define (segments-equal? seg1 seg2)
+    (cond
+     ((and (segment-exact? seg1) (segment-exact? seg2))
+      (string=? (segment-exact-name seg1)
+                (segment-exact-name seg2)))
+     ((and (segment-dynamic? seg1) (segment-dynamic? seg2))
+      (string=? (segment-dynamic-name seg1)
+                (segment-dynamic-name seg2)))
+     (else #f)))
+
   (define (insert-route tree segments handler)
     (if (null? segments)
       (route-tree
-       (route-tree-segment-type tree)
+       (route-tree-segment tree)
        (route-tree-children tree)
-       handler)
-
-      (let* ((seg            (car segments))
-             (matching-child (find (lambda (child)
-                                     (equal? (route-tree-segment-type child)
-                                             (segment-type seg)))
-                                   (route-tree-children tree))))
+       (cons handler (route-tree-handlers tree)))
+      (let* ((seg (car segments))
+             (matching-child
+              (find (lambda (child)
+                      (segments-equal?
+                       (route-tree-segment child)
+                       seg))
+                    (route-tree-children tree))))
         (route-tree
-         (route-tree-segment-type tree)
-         (cons
-          (if matching-child
-            (insert-route matching-child
-                          (cdr segments)
-                          handler)
-            (make-leaf seg
-                       (cdr segments)
-                       handler))
-          (remv matching-child
-                (route-tree-children tree)))
-         (route-tree-handler tree)))))
+         (route-tree-segment tree)
+         (if matching-child
+           (cons (insert-route matching-child
+                               (cdr segments)
+                               handler)
+                 (remove (lambda (el) (equal? el matching-child))
+                         (route-tree-children tree)))
+           (cons (make-leaf seg
+                            (cdr segments)
+                            handler)
+                 (route-tree-children tree)))
+         (route-tree-handlers tree)))))
 
   (define (make-leaf segment rest handler)
     (if (null? rest)
-      (route-tree (segment-type segment) '() handler)
-      (route-tree (segment-type segment)
+      (route-tree segment '() (list handler))
+      (route-tree segment
                   (list (make-leaf (car rest)
                                    (cdr rest)
                                    handler))
-                  #f)))
+                  '())))
 
   (foldl (lambda (route tree)
            (insert-route tree
                          (car route)
                          (cadr route)))
-         (route-tree #f '() #f)
+         (route-tree #f '() '())
          routes))
 
 (define (print-route-tree routes)
-  (define (padding   level)
+  (define (padding level)
     (list->string (repeat #\space (* level 2))))
 
+  (define (segment->string segment)
+    (cond
+     ((not segment) "#f")
+     ((segment-exact? segment)
+      (format "exact:~a" (segment-exact-name segment)))
+     ((segment-dynamic? segment)
+      (format "dynamic:~a" (segment-dynamic-name segment)))
+     (else "invalid-segment")))
+
   (define (tree-iter node level)
-    (printf "~atype: ~a\n"
+    (printf "~asegment: ~a\n"
             (padding level)
-            (route-tree-segment-type node))
+            (segment->string (route-tree-segment node)))
+    (printf "~ahandlers: ~a\n"
+            (padding level)
+            (route-tree-handlers node))
+    (printf "~achildren: [~a]\n"
+            (padding level)
+            (length  (route-tree-children node)))
     (for-each
       (lambda (n) (tree-iter n (+ 1 level)))
       (route-tree-children node)))
 
-  (displayln "fraggot")
   (tree-iter routes 0))
+
+(define (user-handler)  (void))
+(define (posts-handler) (void))
 
 (define test-treee (build-route-tree
                     `(((,(segment-exact "users")
@@ -197,9 +208,126 @@
                        ,posts-handler))))
 
 
-(define (user-handler) (void))
-(define (posts-handler) (void))
+(define-record-type <handler-spec>
+  (handler-spec method path headers handler)
+  handler-spec?
+  (method  handler-spec-method)
+  (path    handler-spec-path)
+  (headers handler-spec-headers)
+  (handler handler-spec-handler))
 
-(define (handle-routing req res)
-  ;; TODO
-  (void))
+(define (define-route method path headers handler)
+  (list (parse-path path) (handler-spec method headers handler)))
+
+(define (method-helper method)
+  (case-lambda
+    ((path handler headers) (define-route method path headers handler))
+    ((path handler)         (define-route method path '() handler))))
+
+(define get    (method-helper 'GET))
+(define put    (method-helper 'PUT))
+(define post   (method-helper 'POST))
+(define patch  (method-helper 'PATCH))
+(define delete (method-helper 'DELETE))
+
+(define test-tree2 (build-route-tree
+                    (list
+                     (get  "/users/:id" user-handler)
+                     (post "/users/:id" user-handler)
+                     (get  "/posts"     posts-handler)
+                     (post "/"          user-handler))))
+
+(define (find-handlers tree path)
+  (define (match-segment seg1 seg2)
+    (or (segment-dynamic? seg1)
+        (and (segment-exact? seg1)
+             (segment-exact? seg2)
+             (string=? (segment-exact-name seg1)
+                       (segment-exact-name seg2)))))
+
+  (define (traverse node segments accum-handlers)
+    (cond
+     ;; at end of path, return all handlers
+     ((null? segments)
+      (append (route-tree-handlers node) accum-handlers))
+
+     ;; try all matching children
+     (else
+      (let* ((seg (car segments))
+             (matching-children
+              (filter (lambda (child)
+                        (match-segment (route-tree-segment child) seg))
+                      (route-tree-children node))))
+        ;; recurse on all matching paths
+        (append-map (lambda (child)
+                      (traverse child
+                                (cdr segments)
+                                accum-handlers))
+                    matching-children)))))
+
+  (traverse tree (parse-path path) '()))
+
+(define (find-valid-handler handler-pairs)
+  (let loop ((remaining handler-pairs)
+             (rejections '()))
+    (cond
+     ((null? remaining)
+      (cons #f rejections))
+     (else
+      (let* ((pair (car remaining))
+             (handler ((handler-spec-handler (car pair))))
+             (result (apply handler (cdr pair))))
+        (if (rejection? result)
+          (loop (cdr remaining)
+                (cons (cons (car pair) result)
+                      rejections))
+          (cons pair rejections)))))))
+
+(define (extract-params pattern url)
+  (define pat-parts
+    (filter (lambda (x) (not (equal? x "")))
+            (string-split pattern #\/)))
+  (define url-parts
+    (filter (lambda (x) (not (equal? x "")))
+            (string-split url #\/)))
+
+  (if (not (= (length pat-parts) (length url-parts)))
+    (rejection 'mismatched "Wrong number of URL segments")
+    (filter-map (lambda (pat url-part)
+                  (and (char=? (string-ref pat 0) #\:)
+                       url-part))
+                pat-parts
+                url-parts)))
+
+(define (router routes)
+  (define (flatten-rec lst)
+    (cond
+     ((null? lst) '())
+     ((pair? (car lst))
+      (append (flatten-rec (car lst))
+              (flatten-rec (cdr lst))))
+     (else
+      (cons (car lst)
+            (flatten-rec (cdr lst))))))
+
+  (let* ((routes     (flatten-rec routes))
+         (route-tree (build-route-tree routes)))
+
+    (lambda (req res)
+      (let ((path     (http-request-path    req))
+            (method   (http-request-method  req))
+            (headers  (http-request-headers req))
+            (body     (http-request-body    req)))
+        (let* ((handlers      (find-handlers route-tree path))
+               (by-method     (filter (lambda (spec)
+                                        (eq? method (handler-spec-method spec)))
+                                      handlers))
+               (by-headers    (filter (lambda (spec)
+                                        (subset (handler-spec-headers spec) headers))
+                                      by-method))
+               ;; we build here pairs of (handler . '(active-segments body))
+               (with-segments (map    (lambda (spec)
+                                        (cons (handler-spec-handler spec)
+                                              (list (extract-params (handler-spec-path spec) path)
+                                                    body))))))
+          (void)))))) ;; TODO
