@@ -58,3 +58,26 @@
            (displayln x)
            (displayln y)
            (+ x y)))
+
+(define (extract-params pattern url)
+  (define pat-parts
+    (filter (lambda (x) (not (equal? x "")))
+            (string-split pattern #\/)))
+  (define url-parts
+    (filter (lambda (x) (not (equal? x "")))
+            (string-split url #\/)))
+
+  (if (not (= (length pat-parts) (length url-parts)))
+    (rejection 'mismatched "Wrong number of URL segments")
+    (filter-map (lambda (pat url-part)
+                  (and (char=? (string-ref pat 0) #\:)
+                       url-part))
+                pat-parts
+                url-parts)))
+
+;; (extract-params "/add/:x/:y" "/add/2")      => rejection
+;; (extract-params "/add/:x/:y" "/add/2/3")    => ("2" "3")
+
+(define (handle-routing req res)
+  ;; TODO
+  (void))
