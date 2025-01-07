@@ -15,6 +15,11 @@
   (type      rejection-type)
   (msg       rejection-msg))
 
+(defile-record-type <file-path>
+  (file-path path)
+  file-path?
+  (path file-path-get))
+
 ;; handler conversions
 ;; :> is identity, because we always need something
 (define (:> x)         x)
@@ -216,6 +221,15 @@
   (headers handler-spec-headers)
   (handler handler-spec-handler))
 
+(define (spec->string spec)
+  (call-with-output-string
+   (lambda ()
+     (display (handler-spec-method spec))
+     (display " ")
+     (display (handler-spec-path   spec))
+     (display " ")
+     (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec)))))))
+
 (define (define-route method path headers handler)
   (list (parse-path path) (handler-spec method headers handler)))
 
@@ -300,6 +314,12 @@
                 url-parts)))
 
 (define (router routes)
+  (define (subset? list1 list2)
+    (every
+     (lambda (x)
+       (member x list2))
+     list1))
+
   (define (flatten-rec lst)
     (cond
      ((null? lst) '())
@@ -323,11 +343,54 @@
                                         (eq? method (handler-spec-method spec)))
                                       handlers))
                (by-headers    (filter (lambda (spec)
-                                        (subset (handler-spec-headers spec) headers))
+                                        (subset? (handler-spec-headers spec) headers))
                                       by-method))
-               ;; we build here pairs of (handler . '(active-segments body))
+               ;; we build here pairs of (handler-spec . '(active-segments body))
                (with-segments (map    (lambda (spec)
-                                        (cons (handler-spec-handler spec)
-                                              (list (extract-params (handler-spec-path spec) path)
+                                        (cons spec
+                                              (list (extract-params (handler-spec-path spec)
+                                                                    path)
                                                     body))))))
-          (void)))))) ;; TODO
+          (define (iterate handler-pair)
+            (let ((spec    (car handler-pair))
+                  (handler (handler-spec-handler handler-pair)
+                           (params  (cdr handler-pair))))
+              (call/cc
+                (lambda (continue)
+                  (let ((result (apply handler params)))
+                    (when (rejection? result)
+                      (eprintf "REJECT: ~a\n -> ~a : ~a\n"
+                               (format-spec    spec)
+                               (rejection-type result)
+                               (rejection-msg  result)
+                               (continue)))
+
+                    (eprintf "ACCEPT: ~a\n" (format-spec spec))
+                    ;; a handler may return
+                    ;; - a string
+                    ;; - a file-path
+                    ;; - (status . body)
+                    ;; - (status headers body)
+                    (cond
+                     ;; string
+                     ((string?  result)
+                      (http-response-write res 200 '() result))
+
+                     ;; file path
+                     ((file-path? result)
+                      (http-response-file res '() (file-path-get result)))
+
+                     ;; pair or list
+                     ((pair? result)
+                      (if (list? result)
+                        ;; (status headers body)
+                        (let ((status   (car   result))
+                              (headers  (cadr  result))
+                              (body (caddr result)))
+                          (http-response-write res status headers))
+                        ;; (status . body)
+                        (let ((status   (car   result))
+                              (body     (cdr   result)))
+                          (http-response-write res status '()))))))))))
+
+          (for-each iterate with-segments))))))
