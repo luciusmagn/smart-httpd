@@ -15,7 +15,7 @@
   (type      rejection-type)
   (msg       rejection-msg))
 
-(defile-record-type <file-path>
+(define-record-type <file-path>
   (file-path path)
   file-path?
   (path file-path-get))
@@ -231,7 +231,7 @@
      (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec)))))))
 
 (define (define-route method path headers handler)
-  (list (parse-path path) (handler-spec method headers handler)))
+  (list (parse-path path) (handler-spec method path headers handler)))
 
 (define (method-helper method)
   (case-lambda
@@ -351,46 +351,63 @@
                                               (list (extract-params (handler-spec-path spec)
                                                                     path)
                                                     body))))))
-          (define (iterate handler-pair)
-            (let ((spec    (car handler-pair))
-                  (handler (handler-spec-handler handler-pair)
-                           (params  (cdr handler-pair))))
-              (call/cc
-                (lambda (continue)
-                  (let ((result (apply handler params)))
-                    (when (rejection? result)
-                      (eprintf "REJECT: ~a\n -> ~a : ~a\n"
-                               (format-spec    spec)
-                               (rejection-type result)
-                               (rejection-msg  result)
-                               (continue)))
 
-                    (eprintf "ACCEPT: ~a\n" (format-spec spec))
-                    ;; a handler may return
-                    ;; - a string
-                    ;; - a file-path
-                    ;; - (status . body)
-                    ;; - (status headers body)
-                    (cond
-                     ;; string
-                     ((string?  result)
-                      (http-response-write res 200 '() result))
+          (define (exec-handlers)
+            (call/cc
+              (lambda (resolve)
+                (define (iterate handler-pair)
+                  (let ((spec    (car handler-pair))
+                        (handler (handler-spec-handler handler-pair))
+                        (params  (cdr handler-pair)))
+                    (call/cc
+                      (lambda (continue)
+                        (let ((result (apply handler params)))
+                          (when (rejection? result)
+                            (eprintf "REJECT: ~a\n -> ~a : ~a\n"
+                                     (spec->string    spec)
+                                     (rejection-type result)
+                                     (rejection-msg  result)
+                                     (continue)))
 
-                     ;; file path
-                     ((file-path? result)
-                      (http-response-file res '() (file-path-get result)))
+                          (eprintf "ACCEPT: ~a\n" (spec->string spec))
+                          ;; a handler may return
+                          ;; - a string
+                          ;; - a file-path
+                          ;; - (status . body)
+                          ;; - (status headers body)
+                          (cond
+                           ;; string
+                           ((string?  result)
+                            (http-response-write res 200 '() result)
+                            (resolve #t))
 
-                     ;; pair or list
-                     ((pair? result)
-                      (if (list? result)
-                        ;; (status headers body)
-                        (let ((status   (car   result))
-                              (headers  (cadr  result))
-                              (body (caddr result)))
-                          (http-response-write res status headers))
-                        ;; (status . body)
-                        (let ((status   (car   result))
-                              (body     (cdr   result)))
-                          (http-response-write res status '()))))))))))
+                           ;; file path
+                           ((file-path? result)
+                            (http-response-file res '() (file-path-get result))
+                            (resolve #t))
 
-          (for-each iterate with-segments))))))
+                           ;; pair or list
+                           ((pair? result)
+                            (if (list? result)
+                              ;; (status headers body)
+                              (let ((status   (car   result))
+                                    (headers  (cadr  result))
+                                    (body (caddr result)))
+                                (http-response-write res status headers))
+                              ;; (status . body)
+                              (let ((status   (car   result))
+                                    (body     (cdr   result)))
+                                (http-response-write res status '())))
+                            (resolve #t)))))))))
+
+              ;; we return from the continuation on success
+              ;; so we resolve with a failure if we didnt
+              (for-each iterate with-segments)
+              (resolve #f)))
+
+          ;; if no handler was good
+          ;; (either because all failed or none were valid)
+          ;; we try the static file handler
+          ;;
+          ;; if that does not work either, we show 404
+          (unless (exec-handlers)))))))
