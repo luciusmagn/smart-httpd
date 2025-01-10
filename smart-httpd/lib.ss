@@ -313,7 +313,28 @@
                 pat-parts
                 url-parts)))
 
-(define (router routes)
+(define (sanitize-static-path url-path)
+  (let ((cleaned (string-trim url-path "/")))
+    (if (string-contains cleaned "..")
+      #f ; reject path traversal attempts
+      (file-path
+       (string-append "./static/" cleaned)))))
+
+(define (error-template status message)
+  (string-append
+   "<!DOCTYPE html><html><head><style>
+     body{font-family:sans-serif;height:100vh;margin:0;
+          display:flex;flex-direction:column;
+          justify-content:center;align-items:center}
+     h1{margin:0}
+     p{color:#666}
+   </style></head>
+   <body><h1>" status "</h1><p>" message "</p></body></html>"))
+
+;; routes is a list of list|route (will be recursively flattened)
+;; static-handler is either 'default, or a handler that takes a path
+;; recovery is either 'default, or a function that takes a rejection, and produces a response
+(define (router static recovery routes)
   (define (subset? list1 list2)
     (every
      (lambda (x)
@@ -330,9 +351,29 @@
       (cons (car lst)
             (flatten-rec (cdr lst))))))
 
-  (let* ((routes     (flatten-rec routes))
-         (route-tree (build-route-tree routes)))
+  (define (default-static-handler path)
+    (sanitize-static-path path))
 
+  (define (default-recovery rejection)
+    (error-template
+     (symbol->string (car rejection))
+     (cdr rejection)))
+
+  (define-record-type <resolution>
+    (resolution ok results)
+    resolution?
+    (ok      resolution-resolved?)
+    (results resolution-results))
+
+
+  (let* ((routes           (flatten-rec routes))
+         (route-tree       (build-route-tree routes))
+         (static-handler   (if (eq? 'default static)
+                             default-static-handler
+                             static))
+         (recovery-handler (if (eq? 'default recovery)
+                             default-recovery-handler
+                             recovery)))
     (lambda (req res)
       (let ((path     (http-request-path    req))
             (method   (http-request-method  req))
@@ -351,7 +392,6 @@
                                               (list (extract-params (handler-spec-path spec)
                                                                     path)
                                                     body))))))
-
           (define (exec-handlers)
             (call/cc
               (lambda (resolve)
@@ -368,24 +408,24 @@
                                      (rejection-type result)
                                      (rejection-msg  result)
                                      (continue)))
-
                           (eprintf "ACCEPT: ~a\n" (spec->string spec))
                           ;; a handler may return
                           ;; - a string
                           ;; - a file-path
                           ;; - (status . body)
                           ;; - (status headers body)
+                          ;; - a rejection
                           (cond
                            ;; string
                            ((string?  result)
                             (http-response-write res 200 '() result)
-                            (resolve #t))
-
+                            ;; we responded with a string, bail!
+                            (resolve (resolution #t '())))
                            ;; file path
                            ((file-path? result)
                             (http-response-file res '() (file-path-get result))
-                            (resolve #t))
-
+                            ;; we responded with a file, bail!
+                            (resolve (resolution #t '())))
                            ;; pair or list
                            ((pair? result)
                             (if (list? result)
@@ -398,16 +438,19 @@
                               (let ((status   (car   result))
                                     (body     (cdr   result)))
                                 (http-response-write res status '())))
-                            (resolve #t)))))))))
-
+                            ;; we responded with a status and possibly headers, bail!
+                            (resolve (resolution #t '()))))))))))
               ;; we return from the continuation on success
               ;; so we resolve with a failure if we didnt
-              (for-each iterate with-segments)
-              (resolve #f)))
-
+              (let ((rejections (map iterate with-segments)))
+                (resolve (resolution #f rejections)))))
           ;; if no handler was good
           ;; (either because all failed or none were valid)
           ;; we try the static file handler
           ;;
           ;; if that does not work either, we show 404
-          (unless (exec-handlers)))))))
+          (unless ((resolution-resolved? exec-handlers))
+            (if (rejection? static)
+              (recovery (rejection
+                         'not-found
+                         "No response was found to your request")))))))))
