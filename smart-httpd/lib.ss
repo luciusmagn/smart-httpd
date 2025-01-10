@@ -223,12 +223,12 @@
 
 (define (spec->string spec)
   (call-with-output-string
-   (lambda ()
-     (display (handler-spec-method spec))
-     (display " ")
-     (display (handler-spec-path   spec))
-     (display " ")
-     (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec)))))))
+    (lambda ()
+      (display (handler-spec-method spec))
+      (display " ")
+      (display (handler-spec-path   spec))
+      (display " ")
+      (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec)))))))
 
 (define (define-route method path headers handler)
   (list (parse-path path) (handler-spec method path headers handler)))
@@ -454,3 +454,16 @@
               (recovery (rejection
                          'not-found
                          "No response was found to your request")))))))))
+
+(define (run-server routes . args)
+  (define port (pget port: args 8080))
+  (define address (pget address: args "127.0.0.1"))
+  (define static (pget static: args 'default))
+  (define recovery (pget recovery: args 'default))
+
+  (let* ((addr (format "~a:~a" address port))
+         (handler (router static recovery routes))
+         (server (start-http-server!
+                  addr
+                  mux: (make-default-http-mux handler))))
+    server))
