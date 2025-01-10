@@ -1,0 +1,108 @@
+* smart-httpd
+A user-friendly web framework for Gerbil Scheme
+
+** Installation
+Add to your =.gerbil/pkg= directory:
+#+begin_src shell
+git clone https://github.com/YOUR_USERNAME/smart-httpd .gerbil/pkg/smart-httpd
+#+end_src
+
+** Quick Start
+#+begin_src scheme
+(import :smart-httpd)
+
+;; Define a handler with type-safe parameters
+(define greet-handler
+ (handler ((name :>string)) <- (body :>)
+   (string-append "Hello, " name "!")))
+
+;; Define routes
+(def routes
+ (list
+   (get "/greet/:name" greet-handler)))
+
+;; Start server
+(run-server routes port: 8080)
+#+end_src
+
+** Handlers
+Handlers are defined using the =handler= macro which provides type-safe parameter extraction:
+
+#+begin_src scheme
+;; body conversion can be omitted with :>
+(define echo-handler
+ (handler () <- (body :>)
+   body))
+
+(define add-handler
+ (handler ((a :>number) (b :>number)) <- (_ :>)
+   (number->string (+ a b))))
+#+end_src
+
+Available type converters:
+- =:>= - identity (same as :>string)
+- =:>string= - identity
+- =:>number= - string->number
+- =:>symbol= - string->symbol
+- =:>keyword= - string->keyword
+- =:>uuid= - string->uuid
+
+Handlers can return:
+- string - responds with 200 and the string
+- file-path - serves the file
+- (status . body) - responds with status code and body
+- (status headers body) - responds with status, headers and body
+- rejection - continues to next matching handler or error handler
+
+** Routes
+Routes are defined using HTTP method helpers:
+
+#+begin_src scheme
+(def routes
+ (list
+   (get    "/users/:id" get-user-handler)
+   (post   "/users"     create-user-handler)
+   (put    "/users/:id" update-user-handler)
+   (patch  "/users/:id" patch-user-handler)
+   (delete "/users/:id" delete-user-handler)))
+#+end_src
+
+The list can be infinitely nested and collect routes from across your app
+
+** Static Files
+To serve static files, provide a custom handler to the router:
+
+#+begin_src scheme
+(define my-static-handler
+ (lambda (path)
+   (file-path (string-append "./public/" path))))
+
+(run-server routes
+ port: 8080
+ static: my-static-handler)
+#+end_src
+
+** Error Handling
+Custom error handling can be provided:
+
+#+begin_src scheme
+(define my-error-handler
+ (lambda (rejection)
+   (format "Error: ~a - ~a"
+           (rejection-type rejection)
+           (rejection-msg rejection))))
+
+(run-server routes
+ port: 8080
+ recovery: my-error-handler)
+#+end_src
+
+** License
+Fair License
+
+Copyright (c) 2025 Lukáš Hozda
+
+Usage of the works is permitted provided that this instrument is retained with the works, so that any entity that uses the works is notified of this instrument.
+
+DISCLAIMER: THE WORKS ARE WITHOUT WARRANTY.
+#+end_src
