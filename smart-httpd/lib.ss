@@ -498,8 +498,9 @@
             (unless (resolution-resolved? reso)
               (let ((static-result (static-handler path)))
                 (if (rejection? static-result)
-                  (recovery-handler (rejection 'not-found
-                                               "No response was found to your request"))
+                  (let ((error-response (recovery-handler (rejection 'not-found
+                                                                     "No response was found to your request"))))
+                    (http-response-write res 404 '() error-response))
                   ;; Actually serve the file if we got a valid file-path
                   (http-response-file res '() (file-path-get static-result)))))))))))
 
