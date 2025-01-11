@@ -2,11 +2,15 @@
 (import :std/error
         :std/sugar
         :std/net/httpd
+        :std/net/uri
+        :std/text/json
         :std/misc/uuid
         :std/misc/func
+        :std/misc/string
         :std/format
         :std/srfi/9
-        :std/srfi/1)
+        :std/srfi/1
+        :std/srfi/13)
 (export #t)
 
 (define-record-type <rejection>
@@ -28,6 +32,35 @@
 (define  :>keyword     string->keyword)
 (define  :>symbol      string->symbol)
 (define  :>uuid        string->uuid)
+
+(define (:>json body)
+  (try
+   (if (string? body)
+     (call-with-input-string body read-json)
+     (rejection 'invalid-form "Body is not a valid string"))
+   (catch (e)
+     (rejection 'invalid-json "Failed to parse JSON"))))
+
+(define table-example
+  (handler () <- (body :>json)
+           (let ((name (hash-ref body 'name))
+                 (age  (hash-ref body 'age)))
+             (string-append "Hello " name ", you are " (number->string age)))))
+
+(define (:>form body)
+  (try
+   (if (string? body)
+     (let ((pairs (form-url-decode body)))
+       (let ((tab (make-hash-table)))
+         (for-each (lambda (pair)
+                     (hash-put! tab
+                                (string->symbol (car pair))
+                                (cdr pair)))
+                   pairs)
+         tab))
+     (rejection 'invalid-form "Body is not a valid string"))
+   (catch (e)
+     (rejection 'invalid-form "Failed to parse form data"))))
 
 (defrules handler (<-)
   ((handler ((var conv) ...) <- (body bconv) statements statements* ...)
@@ -314,7 +347,7 @@
                 url-parts)))
 
 (define (sanitize-static-path url-path)
-  (let ((cleaned (string-trim url-path "/")))
+  (let ((cleaned (string-trim-prefix "/" url-path)))
     (if (string-contains cleaned "..")
       #f ; reject path traversal attempts
       (file-path
@@ -372,7 +405,7 @@
                              default-static-handler
                              static))
          (recovery-handler (if (eq? 'default recovery)
-                             default-recovery-handler
+                             default-recovery
                              recovery)))
     (lambda (req res)
       (let ((path     (http-request-path    req))
@@ -439,11 +472,11 @@
                                     (body     (cdr   result)))
                                 (http-response-write res status '())))
                             ;; we responded with a status and possibly headers, bail!
-                            (resolve (resolution #t '()))))))))))
-              ;; we return from the continuation on success
-              ;; so we resolve with a failure if we didnt
-              (let ((rejections (map iterate with-segments)))
-                (resolve (resolution #f rejections)))))
+                            (resolve (resolution #t '())))))))))
+                ;; we return from the continuation on success
+                ;; so we resolve with a failure if we didnt
+                (let ((rejections (map iterate with-segments)))
+                  (resolve (resolution #f rejections))))))
           ;; if no handler was good
           ;; (either because all failed or none were valid)
           ;; we try the static file handler

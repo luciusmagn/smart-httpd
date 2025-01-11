@@ -10,3 +10,8 @@
 
 (define (main)
   (displayln "bungus"))
+
+
+(def (greet name . args)
+  (def greeting (pget greeting: args "Hello"))
+  (string-append greeting " " name "!"))
