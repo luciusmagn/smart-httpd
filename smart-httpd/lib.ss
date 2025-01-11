@@ -347,7 +347,7 @@
                 url-parts)))
 
 (define (sanitize-static-path url-path)
-  (let ((cleaned (string-trim-prefix "/" url-path)))
+  (let ((cleaned (string-trim-prefix "/static/" url-path)))
     (if (string-contains cleaned "..")
       #f ; reject path traversal attempts
       (file-path
