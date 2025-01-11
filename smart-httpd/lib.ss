@@ -377,6 +377,22 @@
   (define (flatten-rec lst)
     (cond
      ((null? lst) '())
+     ;; If it's a route (list of 2 elements), keep it intact
+     ((and (pair? lst)
+           (= (length lst) 2)
+           (list? (car lst)))
+      (list lst))
+     ;; Otherwise recurse into nested lists
+     ((pair? (car lst))
+      (append (flatten-rec (car lst))
+              (flatten-rec (cdr lst))))
+     (else
+      (cons (car lst)
+            (flatten-rec (cdr lst))))))
+
+  (define (flatten-rec-old lst)
+    (cond
+     ((null? lst) '())
      ((pair? (car lst))
       (append (flatten-rec (car lst))
               (flatten-rec (cdr lst))))
@@ -400,6 +416,7 @@
 
 
   (let* ((routes           (flatten-rec routes))
+         (florg            (displayln routes))
          (route-tree       (build-route-tree routes))
          (static-handler   (if (eq? 'default static)
                              default-static-handler
@@ -500,4 +517,4 @@
          (server (start-http-server!
                   addr
                   mux: (make-default-http-mux handler))))
-    server))
+    (thread-join! server)))

@@ -21,4 +21,5 @@
    (get "/" test-handler)))
 
 (define (main . args)
+  (displayln "running on port 8080")
   (run-server routes port: 8080))
