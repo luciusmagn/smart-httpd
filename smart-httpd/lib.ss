@@ -493,11 +493,13 @@
           ;; we try the static file handler
           ;;
           ;; if that does not work either, we show 404
-          (unless (resolution-resolved? (exec-handlers))
-            (if (rejection? (static-handler path))
-              (recovery-handler (rejection
-                                 'not-found
-                                 "No response was found to your request")))))))))
+          (let ((reso (exec-handlers)))
+            (eprintf "resolution: ~a ~a" (resolution-resolved? reso) (resolution-results reso))
+            (unless (resolution-resolved? reso)
+              (if (rejection? (static-handler path))
+                (recovery-handler (rejection
+                                   'not-found
+                                   "No response was found to your request"))))))))))
 
 (define (run-server routes . args)
   (define port (pget port: args 8080))
