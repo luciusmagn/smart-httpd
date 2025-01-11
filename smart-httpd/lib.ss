@@ -424,7 +424,8 @@
                                         (cons spec
                                               (list (extract-params (handler-spec-path spec)
                                                                     path)
-                                                    body))))))
+                                                    body)))
+                                      by-headers)))
           (define (exec-handlers)
             (call/cc
               (lambda (resolve)
@@ -466,11 +467,11 @@
                               (let ((status   (car   result))
                                     (headers  (cadr  result))
                                     (body (caddr result)))
-                                (http-response-write res status headers))
+                                (http-response-write res status headers body))
                               ;; (status . body)
                               (let ((status   (car   result))
                                     (body     (cdr   result)))
-                                (http-response-write res status '())))
+                                (http-response-write res status '() body)))
                             ;; we responded with a status and possibly headers, bail!
                             (resolve (resolution #t '())))))))))
                 ;; we return from the continuation on success

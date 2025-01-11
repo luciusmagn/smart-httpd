@@ -8,10 +8,17 @@
 
 (include "../manifest.ss")
 
-(define (main)
-  (displayln "bungus"))
-
-
 (def (greet name . args)
   (def greeting (pget greeting: args "Hello"))
   (string-append greeting " " name "!"))
+
+(def test-handler
+  (handler () <- (body :>json)
+           "Hello World!"))
+
+(def routes
+  (list
+   (get "/" test-handler)))
+
+(define (main . args)
+  (run-server routes port: 8080))
