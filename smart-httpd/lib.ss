@@ -37,7 +37,7 @@
   (try
    (if (string? body)
      (call-with-input-string body read-json)
-     (rejection 'invalid-form "Body is not a valid string"))
+     (rejection 'invalid-json "Body is not a valid string"))
    (catch (e)
      (rejection 'invalid-json "Failed to parse JSON"))))
 
@@ -390,16 +390,6 @@
       (cons (car lst)
             (flatten-rec (cdr lst))))))
 
-  (define (flatten-rec-old lst)
-    (cond
-     ((null? lst) '())
-     ((pair? (car lst))
-      (append (flatten-rec (car lst))
-              (flatten-rec (cdr lst))))
-     (else
-      (cons (car lst)
-            (flatten-rec (cdr lst))))))
-
   (define (default-static-handler path)
     (sanitize-static-path path))
 
@@ -414,9 +404,7 @@
     (ok      resolution-resolved?)
     (results resolution-results))
 
-
   (let* ((routes           (flatten-rec routes))
-         (florg            (displayln routes))
          (route-tree       (build-route-tree routes))
          (static-handler   (if (eq? 'default static)
                              default-static-handler
@@ -443,26 +431,13 @@
                                                                     path)
                                                     body)))
                                       by-headers)))
-          (displayln path)
-          (displayln method)
-          (displayln headers)
-          (displayln body)
-          (displayln handlers)
-          (displayln by-method)
-          (displayln by-headers)
-          (displayln with-segments)
           (define (exec-handlers)
-            (displayln "running handlers")
             (call/cc
               (lambda (resolve)
                 (define (iterate handler-pair)
-                  (displayln "iterating...")
-                  (displayln handler-pair)
                   (let* ((spec    (car handler-pair))
                          (handler (handler-spec-handler spec))
                          (params  (cdr handler-pair)))
-                    (displayln "printing spec")
-                    (displayln (spec->string spec))
                     (call/cc
                       (lambda (continue)
                         (let ((result (apply handler params)))
@@ -479,23 +454,19 @@
                           ;; - (status . body)
                           ;; - (status headers body)
                           ;; - a rejection
-                          (displayln "processing result")
                           (cond
                            ;; string
                            ((string?  result)
-                            (displayln "wrote string")
                             (http-response-write res 200 '() result)
                             ;; we responded with a string, bail!
                             (resolve (resolution #t '())))
                            ;; file path
                            ((file-path? result)
-                            (displayln "wrote file")
                             (http-response-file res '() (file-path-get result))
                             ;; we responded with a file, bail!
                             (resolve (resolution #t '())))
                            ;; pair or list
                            ((pair? result)
-                            (displayln "wrote pair or list")
                             (if (list? result)
                               ;; (status headers body)
                               (let ((status   (car   result))
@@ -517,7 +488,6 @@
           ;; we try the static file handler
           ;;
           ;; if that does not work either, we show 404
-          (displayln "test if we need static")
           (unless (resolution-resolved? (exec-handlers))
             (if (rejection? (static path))
               (recovery (rejection
