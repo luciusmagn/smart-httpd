@@ -412,8 +412,10 @@
          (recovery-handler (if (eq? 'default recovery)
                              default-recovery
                              recovery)))
-    (displayln "is-default?")
-    (displayln (eq? 'default static))
+    (eprintf "using default static handler: ~a\n"
+             (eq? 'default static))
+    (eprintf "using default recovery handler: ~a\n"
+             (eq? 'default recovery))
 
     (lambda (req res)
       (let ((path     (http-request-path    req))
@@ -492,10 +494,10 @@
           ;;
           ;; if that does not work either, we show 404
           (unless (resolution-resolved? (exec-handlers))
-            (if (rejection? (static path))
-              (recovery (rejection
-                         'not-found
-                         "No response was found to your request")))))))))
+            (if (rejection? (static-handler path))
+              (recovery-handler (rejection
+                                 'not-found
+                                 "No response was found to your request")))))))))
 
 (define (run-server routes . args)
   (define port (pget port: args 8080))
