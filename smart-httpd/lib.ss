@@ -256,12 +256,12 @@
 
 (define (spec->string spec)
   (call-with-output-string
-    (lambda ()
-      (display (handler-spec-method spec))
-      (display " ")
-      (display (handler-spec-path   spec))
-      (display " ")
-      (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec)))))))
+    (lambda (port)
+      (display (handler-spec-method spec) port)
+      (display " " port)
+      (display (handler-spec-path   spec) port)
+      (display " " port)
+      (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
 
 (define (define-route method path headers handler)
   (list (parse-path path) (handler-spec method path headers handler)))
@@ -452,12 +452,16 @@
           (displayln by-headers)
           (displayln with-segments)
           (define (exec-handlers)
+            (displayln "running handlers")
             (call/cc
               (lambda (resolve)
                 (define (iterate handler-pair)
-                  (let ((spec    (car handler-pair))
-                        (handler (handler-spec-handler handler-pair))
-                        (params  (cdr handler-pair)))
+                  (displayln "iterating...")
+                  (displayln handler-pair)
+                  (let* ((spec    (car handler-pair))
+                         (handler (handler-spec-handler spec))
+                         (params  (cdr handler-pair)))
+                    (displayln "printing spec")
                     (displayln (spec->string spec))
                     (call/cc
                       (lambda (continue)
@@ -475,24 +479,28 @@
                           ;; - (status . body)
                           ;; - (status headers body)
                           ;; - a rejection
+                          (displayln "processing result")
                           (cond
                            ;; string
                            ((string?  result)
+                            (displayln "wrote string")
                             (http-response-write res 200 '() result)
                             ;; we responded with a string, bail!
                             (resolve (resolution #t '())))
                            ;; file path
                            ((file-path? result)
+                            (displayln "wrote file")
                             (http-response-file res '() (file-path-get result))
                             ;; we responded with a file, bail!
                             (resolve (resolution #t '())))
                            ;; pair or list
                            ((pair? result)
+                            (displayln "wrote pair or list")
                             (if (list? result)
                               ;; (status headers body)
                               (let ((status   (car   result))
                                     (headers  (cadr  result))
-                                    (body (caddr result)))
+                                    (body     (caddr result)))
                                 (http-response-write res status headers body))
                               ;; (status . body)
                               (let ((status   (car   result))
@@ -509,8 +517,9 @@
           ;; we try the static file handler
           ;;
           ;; if that does not work either, we show 404
-          (unless ((resolution-resolved? (exec-handlers)))
-            (if (rejection? static)
+          (displayln "test if we need static")
+          (unless (resolution-resolved? (exec-handlers))
+            (if (rejection? (static path))
               (recovery (rejection
                          'not-found
                          "No response was found to your request")))))))))
