@@ -4,7 +4,7 @@ A user-friendly web framework for Gerbil Scheme
 ** Installation
 Add to your =.gerbil/pkg= directory:
 #+begin_src shell
-git clone https://github.com/YOUR_USERNAME/smart-httpd .gerbil/pkg/smart-httpd
+git clone https://github.com/luciusmagn/smart-httpd .gerbil/pkg/smart-httpd
 #+end_src
 
 ** Quick Start
@@ -17,7 +17,7 @@ git clone https://github.com/YOUR_USERNAME/smart-httpd .gerbil/pkg/smart-httpd
    (string-append "Hello, " name "!")))
 
 ;; Define routes
-(def routes
+(define routes
  (list
    (get "/greet/:name" greet-handler)))
 
@@ -34,6 +34,22 @@ Handlers are defined using the =handler= macro which provides type-safe paramete
  (handler () <- (body :>)
    body))
 
+;; JSON body handling
+(define json-handler
+ (handler () <- (body :>json)
+   (let ((name (hash-ref body 'name))
+         (age  (hash-ref body 'age)))
+     (string-append "Hello " name ", you are " (number->string age)))))
+
+;; Form data handling
+(define form-handler
+ (handler () <- (body :>form)
+   (let ((username (hash-ref body 'username))
+         (password (hash-ref body 'password)))
+     (string-append "Login attempt by: " username))))
+
+;; params are defined like this
+;; this request ignores the body
 (define add-handler
  (handler ((a :>number) (b :>number)) <- (_ :>)
    (number->string (+ a b))))
@@ -46,6 +62,8 @@ Available type converters:
 - =:>symbol= - string->symbol
 - =:>keyword= - string->keyword
 - =:>uuid= - string->uuid
+- =:>json= - parse JSON body into hash table
+- =:>form= - parse x-www-form-urlencoded body into hash table
 
 Handlers can return:
 - string - responds with 200 and the string
@@ -58,7 +76,7 @@ Handlers can return:
 Routes are defined using HTTP method helpers:
 
 #+begin_src scheme
-(def routes
+(define routes
  (list
    (get    "/users/:id" get-user-handler)
    (post   "/users"     create-user-handler)
@@ -67,7 +85,24 @@ Routes are defined using HTTP method helpers:
    (delete "/users/:id" delete-user-handler)))
 #+end_src
 
-The list can be infinitely nested and collect routes from across your app
+The list can be infinitely nested and collect routes from across your app:
+
+#+begin_src scheme
+(define user-routes
+ (list
+   (get  "/users"     list-users)
+   (post "/users"     create-user)))
+
+(define post-routes
+ (list
+   (get  "/posts"     list-posts)
+   (post "/posts"     create-post)))
+
+(define routes
+ (list
+   user-routes
+   post-routes))
+#+end_src
 
 ** Static Files
 To serve static files, provide a custom handler to the router:
@@ -96,6 +131,37 @@ Custom error handling can be provided:
  port: 8080
  recovery: my-error-handler)
 #+end_src
+
+** HTML Templates with SHSX
+smart-httpd works great with SHSX for HTML templating:
+
+#+begin_src scheme
+(import :smart-httpd
+       :shsx/lib)
+
+(define template-handler
+ (handler ((name :>string)) <- (_ :>)
+   (render-html
+    (shsx
+     (html:
+      (head:
+       (title: "Greeting"))
+      (body:
+       (h1: "Hello, " ,name "!")
+       (p: "Welcome to our site")
+       ,(@when (string=? name "admin")
+          (div: class: "admin-panel"
+                (p: "Admin controls here")))))))))
+
+(define routes
+ (list
+   (get "/greet/:name" template-handler)))
+
+(run-server routes port: 8080)
+#+end_src
+
+SHSX provides a clean syntax for generating HTML with full Scheme integration.
+See the [[https://github.com/luciusmagn/shsx][SHSX documentation]] for more details about templating features.
 
 ** License
 Fair License
