@@ -105,7 +105,7 @@ The list can be infinitely nested and collect routes from across your app:
 #+end_src
 
 ** Static Files
-To serve static files, provide a custom handler to the router:
+To serve static files (from elsewhere than default =./static/=), provide a custom handler to the router:
 
 #+begin_src scheme
 (define my-static-handler
