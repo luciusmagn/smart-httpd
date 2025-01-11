@@ -443,6 +443,14 @@
                                                                     path)
                                                     body)))
                                       by-headers)))
+          (displayln path)
+          (displayln method)
+          (displayln headers)
+          (displayln body)
+          (displayln handlers)
+          (displayln by-method)
+          (displayln by-headers)
+          (displayln with-segments)
           (define (exec-handlers)
             (call/cc
               (lambda (resolve)
@@ -450,6 +458,7 @@
                   (let ((spec    (car handler-pair))
                         (handler (handler-spec-handler handler-pair))
                         (params  (cdr handler-pair)))
+                    (displayln (spec->string spec))
                     (call/cc
                       (lambda (continue)
                         (let ((result (apply handler params)))
@@ -500,7 +509,7 @@
           ;; we try the static file handler
           ;;
           ;; if that does not work either, we show 404
-          (unless ((resolution-resolved? exec-handlers))
+          (unless ((resolution-resolved? (exec-handlers)))
             (if (rejection? static)
               (recovery (rejection
                          'not-found
