@@ -496,10 +496,12 @@
           (let ((reso (exec-handlers)))
             (eprintf "resolution: ~a ~a" (resolution-resolved? reso) (resolution-results reso))
             (unless (resolution-resolved? reso)
-              (if (rejection? (static-handler path))
-                (recovery-handler (rejection
-                                   'not-found
-                                   "No response was found to your request"))))))))))
+              (let ((static-result (static-handler path)))
+                (if (rejection? static-result)
+                  (recovery-handler (rejection 'not-found
+                                               "No response was found to your request"))
+                  ;; Actually serve the file if we got a valid file-path
+                  (http-response-file res '() (file-path-get static-result)))))))))))
 
 (define (run-server routes . args)
   (define port (pget port: args 8080))
