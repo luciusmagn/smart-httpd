@@ -412,6 +412,9 @@
          (recovery-handler (if (eq? 'default recovery)
                              default-recovery
                              recovery)))
+    (displayln "is-default?")
+    (displayln (eq? 'default static))
+
     (lambda (req res)
       (let ((path     (http-request-path    req))
             (method   (http-request-method  req))
