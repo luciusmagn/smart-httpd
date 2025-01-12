@@ -10,7 +10,8 @@
         :std/format
         :std/srfi/9
         :std/srfi/1
-        :std/srfi/13)
+        :std/srfi/13
+        ./cookie)
 (export #t)
 
 (define-record-type <rejection>
@@ -62,32 +63,33 @@
    (catch (e)
      (rejection 'invalid-form "Failed to parse form data"))))
 
+(define (:>cookies str)
+  (parse-cookies str))
+
 (defrules handler (<-)
   ((handler ((var conv) ...) <- (body bconv) statements statements* ...)
-   (lambda (active-segments body-data)
-     ;; just in case copy the list, I don't trust myself at this hour
+   (lambda (active-segments body-data headers)
      (def ptr
        (list-copy active-segments))
 
-     ;; hack to let us not have to track the position in the list
      (def (pop-ptr)
        (let ((elem (car ptr)))
          (set! ptr (cdr ptr))
          elem))
 
-     ;; actual implementation
      (call/cc
        (lambda (reject)
          (define (validate converted)
            (cond
-            ;; TODO: decide if we want to make a nicer rejection
             ((boolean?   converted) (when (not converted) (reject converted)))
             ((rejection? converted) (reject converted))
             (else converted)))
 
-         ;; catch possible exceptions, most-likely missing arguments
          (try
-          (let ((var (validate (conv (pop-ptr)))) ...)
+          ;; cond pro ostatní
+          (let ((var (if (equal? conv :>cookie)
+                       (validate (:>cookie headers))  ; use headers for cookies
+                       (validate (conv (pop-ptr))))) ...)
             (let ((body (bconv body-data)))
               statements
               statements* ...))
@@ -445,7 +447,7 @@
                          (params  (cdr handler-pair)))
                     (call/cc
                       (lambda (continue)
-                        (let ((result (apply handler params)))
+                        (let ((result (apply handler params (list headers))))
                           (when (rejection? result)
                             (eprintf "REJECT: ~a\n -> ~a : ~a\n"
                                      (spec->string    spec)
