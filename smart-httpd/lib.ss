@@ -124,7 +124,7 @@
                       ((headers-extractor? conv) (validate (apply (extractor-fn conv) (list headers))))
                       ((body-extractor? conv)    (validate (apply (extractor-fn conv) body-data)))
                       (else (reject (rejection 'invalid-conv "Invalid conversion"))))) ...)
-            (let ((body (bconv body-data)))
+            (let ((body (apply (extractor-fn bconv) body-data)))
               statements
               statements* ...))
           (catch (e) (reject (rejection 'exception "An exception was caught")))))))))
@@ -350,22 +350,6 @@
 
   (traverse tree (parse-path path) '()))
 
-(define (find-valid-handler handler-pairs)
-  (let loop ((remaining handler-pairs)
-             (rejections '()))
-    (cond
-     ((null? remaining)
-      (cons #f rejections))
-     (else
-      (let* ((pair (car remaining))
-             (handler ((handler-spec-handler (car pair))))
-             (result (apply handler (cdr pair))))
-        (if (rejection? result)
-          (loop (cdr remaining)
-                (cons (cons (car pair) result)
-                      rejections))
-          (cons pair rejections)))))))
-
 (define (extract-params pattern url)
   (define pat-parts
     (filter (lambda (x) (not (equal? x "")))
@@ -481,7 +465,7 @@
                          (params  (cdr handler-pair)))
                     (call/cc
                       (lambda (continue)
-                        (let ((result (apply handler params (list headers))))
+                        (let ((result (apply handler (append params (list headers)))))
                           (when (rejection? result)
                             (eprintf "REJECT: ~a\n -> ~a : ~a\n"
                                      (spec->string    spec)
