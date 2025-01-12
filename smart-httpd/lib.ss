@@ -481,7 +481,7 @@
                          (params  (cdr handler-pair)))
                     (call/cc
                       (lambda (continue)
-                        (let ((result (apply handler params body (list headers))))
+                        (let ((result (apply handler params (list headers))))
                           (when (rejection? result)
                             (eprintf "REJECT: ~a\n -> ~a : ~a\n"
                                      (spec->string    spec)
