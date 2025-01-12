@@ -25,46 +25,78 @@
   file-path?
   (path file-path-get))
 
+(define-record-type <extractor>
+  (extractor type fn)
+  extractor?
+  ;; symbol 'segment 'header 'body
+  (type  extractor-type)
+  (fn    extractor-fn))
+
+(defrules define-segment-extractor ()
+  ((define-segment-extractor name fn)
+   (define name (extractor 'segment fn))))
+
+(defrules define-headers-extractor ()
+  ((define-segment-extractor name fn)
+   (define name (extractor 'headers fn))))
+
+(defrules define-body-extractor ()
+  ((define-segment-extractor name fn)
+   (define name (extractor 'body fn))))
+
+(define (segment-extractor? extractor)
+  (eq? 'segment (extractor-type extractor)))
+
+(define (headers-extractor? extractor)
+  (eq? 'headers (extractor-type extractor)))
+
+(define (body-extractor? extractor)
+  (eq? 'body    (extractor-type extractor)))
+
 ;; handler conversions
 ;; :> is identity, because we always need something
-(define (:> x)         x)
-(define  :>string      :>) ; yeah
-(define  :>number      string->number)
-(define  :>keyword     string->keyword)
-(define  :>symbol      string->symbol)
-(define  :>uuid        string->uuid)
+(define-segment-extractor  :>            (lambda (x) x))
+(define-segment-extractor  :>string      :>) ; yeah
+(define-segment-extractor  :>number      string->number)
+(define-segment-extractor  :>keyword     string->keyword)
+(define-segment-extractor  :>symbol      string->symbol)
+(define-segment-extractor  :>uuid        string->uuid)
 
-(define (:>json body)
-  (try
-   (if (string? body)
-     (call-with-input-string body read-json)
-     (rejection 'invalid-json "Body is not a valid string"))
-   (catch (e)
-     (rejection 'invalid-json "Failed to parse JSON"))))
+(define-body-extractor
+  :>json
+  (lambda (body)
+    (try
+     (if (string? body)
+       (call-with-input-string body read-json)
+       (rejection 'invalid-json "Body is not a valid string"))
+     (catch (e)
+       (rejection 'invalid-json "Failed to parse JSON")))))
+
+(define-headers-extractor :>cookies parse-cookies)
+
+
+(define-body-extractor
+  :>form
+  (lambda (body)
+    (try
+     (if (string? body)
+       (let ((pairs (form-url-decode body)))
+         (let ((tab (make-hash-table)))
+           (for-each (lambda (pair)
+                       (hash-put! tab
+                                  (string->symbol (car pair))
+                                  (cdr pair)))
+                     pairs)
+           tab))
+       (rejection 'invalid-form "Body is not a valid string"))
+     (catch (e)
+       (rejection 'invalid-form "Failed to parse form data")))))
 
 (define table-example
   (handler () <- (body :>json)
            (let ((name (hash-ref body 'name))
                  (age  (hash-ref body 'age)))
              (string-append "Hello " name ", you are " (number->string age)))))
-
-(define (:>form body)
-  (try
-   (if (string? body)
-     (let ((pairs (form-url-decode body)))
-       (let ((tab (make-hash-table)))
-         (for-each (lambda (pair)
-                     (hash-put! tab
-                                (string->symbol (car pair))
-                                (cdr pair)))
-                   pairs)
-         tab))
-     (rejection 'invalid-form "Body is not a valid string"))
-   (catch (e)
-     (rejection 'invalid-form "Failed to parse form data"))))
-
-(define (:>cookies str)
-  (parse-cookies str))
 
 (defrules handler (<-)
   ((handler ((var conv) ...) <- (body bconv) statements statements* ...)
@@ -86,10 +118,12 @@
             (else converted)))
 
          (try
-          ;; cond pro ostatní
-          (let ((var (if (equal? conv :>cookie)
-                       (validate (:>cookie headers))  ; use headers for cookies
-                       (validate (conv (pop-ptr))))) ...)
+          ;; hey Tapio -- is the proposed let var correct? below it is the original
+          (let ((var (cond
+                      ((segment-extractor? conv) (validate (apply (extractor-fn conv) (pop-ptr))))
+                      ((headers-extractor? conv) (validate (apply (extractor-fn conv) headers)))
+                      ((body-extractor? conv)    (validate (apply (extractor-fn conv) body-data)))
+                      (else (reject (rejection 'invalid-conv "Invalid conversion"))))) ...)
             (let ((body (bconv body-data)))
               statements
               statements* ...))
@@ -258,12 +292,12 @@
 
 (define (spec->string spec)
   (call-with-output-string
-    (lambda (port)
-      (display (handler-spec-method spec) port)
-      (display " " port)
-      (display (handler-spec-path   spec) port)
-      (display " " port)
-      (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
+   (lambda (port)
+     (display (handler-spec-method spec) port)
+     (display " " port)
+     (display (handler-spec-path   spec) port)
+     (display " " port)
+     (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
 
 (define (define-route method path headers handler)
   (list (parse-path path) (handler-spec method path headers handler)))
