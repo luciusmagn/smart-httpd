@@ -514,7 +514,7 @@
           ;;
           ;; if that does not work either, we show 404
           (let ((reso (exec-handlers)))
-            (eprintf "resolution: ~a ~a" (resolution-resolved? reso) (resolution-results reso))
+            (eprintf "resolution: ~a ~a\n" (resolution-resolved? reso) (resolution-results reso))
             (unless (resolution-resolved? reso)
               (let ((static-result (static-handler path)))
                 (if (rejection? static-result)
