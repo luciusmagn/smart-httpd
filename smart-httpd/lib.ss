@@ -26,23 +26,24 @@
   (path file-path-get))
 
 (define-record-type <extractor>
-  (extractor type fn)
+  (extractor type fn name)
   extractor?
-  ;; symbol 'segment 'header 'body
+  ;; symbol 'segment 'headers 'body
   (type  extractor-type)
-  (fn    extractor-fn))
+  (fn    extractor-fn)
+  (name  extractor-name))
 
 (defrules define-segment-extractor ()
   ((define-segment-extractor name fn)
-   (define name (extractor 'segment fn))))
+   (define name (extractor 'segment fn (symbol->string 'name)))))
 
 (defrules define-headers-extractor ()
   ((define-segment-extractor name fn)
-   (define name (extractor 'headers fn))))
+   (define name (extractor 'headers fn (symbol->string 'name)))))
 
 (defrules define-body-extractor ()
   ((define-segment-extractor name fn)
-   (define name (extractor 'body fn))))
+   (define name (extractor 'body    fn (symbol->string 'name)))))
 
 (define (segment-extractor? extractor)
   (eq? 'segment (extractor-type extractor)))
