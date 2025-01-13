@@ -13,7 +13,7 @@
   (string-append greeting " " name "!"))
 
 (def test-handler
-  (handler () <- (body :>json)
+  (handler () <- (body :>)
            "Hello World!"))
 
 (def routes
