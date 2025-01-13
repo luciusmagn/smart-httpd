@@ -119,13 +119,15 @@
             (else converted)))
 
          (try
-          ;; hey Tapio -- is the proposed let var correct? below it is the original
           (let ((var (cond
-                      ((segment-extractor? conv) (validate (apply (extractor-fn conv) (pop-ptr))))
-                      ((headers-extractor? conv) (validate (apply (extractor-fn conv) (list headers))))
-                      ((body-extractor? conv)    (validate (apply (extractor-fn conv) body-data)))
-                      (else (reject (rejection 'invalid-conv "Invalid conversion"))))) ...)
-            (let ((body (apply (extractor-fn bconv) body-data)))
+                      ((segment-extractor? conv) (validate ((extractor-fn conv) (pop-ptr))))
+                      ((headers-extractor? conv) (validate ((extractor-fn conv) (list headers))))
+                      ((body-extractor? conv)    (validate ((extractor-fn conv) body-data)))
+                      (else
+                       (reject (rejection 'invalid-conv "Invalid conversion"))))) ...)
+            (let ((body (if (string? body-data)
+                          ((extractor-fn bconv) body-data)
+                          ((extractor-fn bconv) ""))))
               statements
               statements* ...))
           (catch (e) (reject (rejection 'exception "An exception was caught")))))))))
@@ -468,7 +470,7 @@
                          (params  (cdr handler-pair)))
                     (call/cc
                       (lambda (continue)
-                        (let ((result (apply handler (append params (list headers)))))
+                        (let ((result (apply handler params)))
                           (when (rejection? result)
                             (eprintf "REJECT: ~a\n -> ~a : ~a\n"
                                      (spec->string    spec)
