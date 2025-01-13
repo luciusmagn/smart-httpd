@@ -454,8 +454,10 @@
                                         (cons spec
                                               (list (extract-params (handler-spec-path spec)
                                                                     path)
-                                                    body)))
+                                                    body
+                                                    headers)))
                                       by-headers)))
+
           (define (exec-handlers)
             (call/cc
               (lambda (resolve)
