@@ -16,9 +16,15 @@
   (handler () <- (body :>)
            "Hello World!"))
 
+(def test-handler-file
+  (handler () <- (body :>)
+           (displayln "bungus")
+           (file-path "index.html")))
+
 (def routes
   (list
-   (get "/" test-handler)))
+   (get "/"     test-handler)
+   (get "/file" test-handler-file)))
 
 (define (main . args)
   (displayln "running on port 8080")
