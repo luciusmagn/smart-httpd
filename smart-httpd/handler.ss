@@ -101,7 +101,7 @@
      (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
 
 (define (define-route method path headers handler)
-  (list (parse-path path) (handler-spec method path headers handler)))
+  (vector (list->vector (parse-path path)) (handler-spec method path headers handler)))
 
 (define (method-helper method)
   (case-lambda

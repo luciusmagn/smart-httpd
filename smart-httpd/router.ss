@@ -13,49 +13,13 @@
         (only-in :std/srfi/1
                  every
                  remove
-                 append-map)
+                 append-map
+                 zip)
         ./handler
         ./response
         ./resolution
         ./rejection)
 (export #t)
-
-(define-record-type <route-tree>
-  (route-tree segment children handlers)
-  route-tree?
-  (segment    route-tree-segment)
-  (children   route-tree-children)
-  (handlers   route-tree-handlers))
-
-(define (print-route-tree routes)
-  (define (padding level)
-    (list->string (repeat #\space (* level 2))))
-
-  (define (segment->string segment)
-    (cond
-     ((not segment) "#f")
-     ((segment-exact? segment)
-      (format "exact:~a" (segment-exact-name segment)))
-     ((segment-dynamic? segment)
-      (format "dynamic:~a" (segment-dynamic-name segment)))
-     (else "invalid-segment")))
-
-  (define (tree-iter node level)
-    (printf "~asegment: ~a\n"
-            (padding level)
-            (segment->string (route-tree-segment node)))
-    (printf "~ahandlers: ~a\n"
-            (padding level)
-            (route-tree-handlers node))
-    (printf "~achildren: [~a]\n"
-            (padding level)
-            (length  (route-tree-children node)))
-    (for-each
-      (lambda (n) (tree-iter n (+ 1 level)))
-      (route-tree-children node)))
-
-  (tree-iter routes 0))
-
 
 (define (error-template status message)
   (string-append
@@ -68,90 +32,25 @@
    </style></head>
    <body><h1>" status "</h1><p>" message "</p></body></html>"))
 
+(define (route-matches? route path)
+  (let ((route-segments (vector->list (car route)))
+        (path-segments  (parse-path path)))
+    (call/cc
+      (lambda (return)
+        (when (not (= (length route-segments)
+                      (length path-segments)))
+          (return #f))
 
-(define (find-handlers tree path)
-  (define (match-segment seg1 seg2)
-    (or (segment-dynamic? seg1)
-        (and (segment-exact? seg1)
-             (segment-exact? seg2)
-             (string=? (segment-exact-name seg1)
-                       (segment-exact-name seg2)))))
+        (define (match-segment seg1 seg2)
+          (or (segment-dynamic? seg1)
+              (and (segment-exact? seg1)
+                   (segment-exact? seg2)
+                   (string=? (segment-exact-name seg1)
+                             (segment-exact-name seg2)))))
 
-  (define (traverse node segments accum-handlers)
-    (cond
-     ;; at end of path, return all handlers
-     ((null? segments)
-      (append (route-tree-handlers node) accum-handlers))
-
-     ;; try all matching children
-     (else
-      (let* ((seg (car segments))
-             (matching-children
-              (filter (lambda (child)
-                        (match-segment (route-tree-segment child) seg))
-                      (route-tree-children node))))
-        ;; recurse on all matching paths
-        (append-map (lambda (child)
-                      (traverse child
-                                (cdr segments)
-                                accum-handlers))
-                    matching-children)))))
-
-  (traverse tree (parse-path path) '()))
-
-(define (build-route-tree routes)
-  (define (segments-equal? seg1 seg2)
-    (cond
-     ((and (segment-exact? seg1) (segment-exact? seg2))
-      (string=? (segment-exact-name seg1)
-                (segment-exact-name seg2)))
-     ((and (segment-dynamic? seg1) (segment-dynamic? seg2))
-      (string=? (segment-dynamic-name seg1)
-                (segment-dynamic-name seg2)))
-     (else #f)))
-
-  (define (insert-route tree segments handler)
-    (if (null? segments)
-      (route-tree
-       (route-tree-segment tree)
-       (route-tree-children tree)
-       (cons handler (route-tree-handlers tree)))
-      (let* ((seg (car segments))
-             (matching-child
-              (find (lambda (child)
-                      (segments-equal?
-                       (route-tree-segment child)
-                       seg))
-                    (route-tree-children tree))))
-        (route-tree
-         (route-tree-segment tree)
-         (if matching-child
-           (cons (insert-route matching-child
-                               (cdr segments)
-                               handler)
-                 (remove (lambda (el) (equal? el matching-child))
-                         (route-tree-children tree)))
-           (cons (make-leaf seg
-                            (cdr segments)
-                            handler)
-                 (route-tree-children tree)))
-         (route-tree-handlers tree)))))
-
-  (define (make-leaf segment rest handler)
-    (if (null? rest)
-      (route-tree segment '() (list handler))
-      (route-tree segment
-                  (list (make-leaf (car rest)
-                                   (cdr rest)
-                                   handler))
-                  '())))
-
-  (foldl (lambda (route tree)
-           (insert-route tree
-                         (car route)
-                         (cadr route)))
-         (route-tree #f '() '())
-         routes))
+        (printf "zipped length: ~a\n" (length (zip route-segments path-segments)))
+        (every (lambda (pair) (apply match-segment pair))
+               (zip route-segments path-segments))))))
 
 ;; routes is a list of list|route (will be recursively flattened)
 ;; static-handler is either 'default, or a handler that takes a path
@@ -187,8 +86,7 @@
      (symbol->string (car rejection))
      (cdr rejection)))
 
-  (let* ((routes           (flatten-rec routes))
-         (route-tree       (build-route-tree routes))
+  (let* ((routes           (map vector->list (flatten-rec routes)))
          (static-handler   (if (eq? 'default static)
                              default-static-handler
                              static))
@@ -205,13 +103,16 @@
             (method   (http-request-method  req))
             (headers  (http-request-headers req))
             (body     (http-request-body    req)))
-        (let* ((handlers      (find-handlers route-tree path))
-               (by-method     (filter (lambda (spec)
-                                        (eq? method (handler-spec-method spec)))
-                                      handlers))
-               (by-headers    (filter (lambda (spec)
-                                        (subset? (handler-spec-headers spec) headers))
-                                      by-method))
+        (let* ((matching-routes      (filter (lambda (route)
+                                               (route-matches? route path))
+                                             routes))
+               (handlers             (map cadr matching-routes))
+               (by-method            (filter (lambda (spec)
+                                               (eq? method (handler-spec-method spec)))
+                                             handlers))
+               (by-headers           (filter (lambda (spec)
+                                               (subset? (handler-spec-headers spec) headers))
+                                             by-method))
                ;; we build here pairs of (handler-spec . '(active-segments body))
                (with-segments (map    (lambda (spec)
                                         (cons spec
@@ -221,7 +122,7 @@
                                                     headers)))
                                       by-headers)))
           (when (= (length with-segments) 0)
-            (display "bempty"))
+            (displayln "No initially matching handlers"))
 
           (define (exec-handlers)
             (call/cc
