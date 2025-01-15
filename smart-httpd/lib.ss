@@ -414,7 +414,7 @@
 (define-record-type <response-status>
   (status code)
   response-status?
-  (code response-status-code))
+  (code response-status))
 
 (define (cookie name value)
   (let ((cookie (make-set-cookie name value (hash) '())))
@@ -469,7 +469,6 @@
         (http-response-write res status '() body)))
     (resolve (resolution #t '())))
    ((response? response)
-    ;; TODO! Add response type
     (http-response-write res
                          (response-status-code response)
                          (response-headers response)
