@@ -13,55 +13,25 @@
         :std/srfi/13
         ./conversions
         ./rejection
-        ./cookie)
+        ./cookie
+        ./response
+        ./router
+        ./handler)
 
 (export (import: ./rejection))
 (export (import: ./conversions))
+(export (import: ./response))
+(export (import: ./router))
+(export (import: ./cookie))
+(export (import: ./handler))
 (export #t)
 
-(define-record-type <file-path>
-  (file-path path)
-  file-path?
-  (path file-path-get))
 
-(defrules handler (<-)
-  ((handler ((var conv) ...) <- (body bconv) statements statements* ...)
-   (lambda (active-segments body-data headers)
-     (def ptr
-       (list-copy active-segments))
-
-     (def (pop-ptr)
-       (let ((elem (car ptr)))
-         (set! ptr (cdr ptr))
-         elem))
-
-     (call/cc
-       (lambda (reject)
-         (define (validate converted)
-           (cond
-            ((boolean?   converted) (when (not converted) (reject converted)))
-            ((rejection? converted) (reject converted))
-            (else converted)))
-
-         (try
-          (let ((var (cond
-                      ((segment-extractor? conv) (validate ((extractor-fn conv) (pop-ptr))))
-                      ((headers-extractor? conv) (validate ((extractor-fn conv) (list headers))))
-                      ((body-extractor? conv)    (validate ((extractor-fn conv) body-data)))
-                      (else
-                       (reject (rejection 'invalid-conv "Invalid conversion"))))) ...)
-            (let ((body (if (string? body-data)
-                          ((extractor-fn bconv) body-data)
-                          ((extractor-fn bconv) ""))))
-              statements
-              statements* ...))
-          (catch (e) (reject (rejection 'exception "An exception was caught")))))))))
-
-(define add-two
-  (handler ((x :>number) (y :>number)) <- (_ :>)
-           (displayln x)
-           (displayln y)
-           (+ x y)))
+;;(define add-two
+;;  (handler ((x :>number) (y :>number)) <- (_ :>)
+;;           (displayln x)
+;;           (displayln y)
+;;           (+ x y)))
 
 (define-record-type <route-tree>
   (route-tree segment children handlers)
@@ -199,47 +169,16 @@
 
   (tree-iter routes 0))
 
-(define (user-handler)  (void))
-(define (posts-handler) (void))
-
+;;(define (user-handler)  (void))
+;;(define (posts-handler) (void))
+;;
 ;;(define test-treee (build-route-tree
 ;;                    `(((,(segment-exact "users")
 ;;                        ,(segment-dynamic "id"))
 ;;                       ,user-handler)
 ;;                      ((,(segment-exact "posts"))))))
 ;;                       ,posts-handler))))
-
-(define-record-type <handler-spec>
-  (handler-spec method path headers handler)
-  handler-spec?
-  (method  handler-spec-method)
-  (path    handler-spec-path)
-  (headers handler-spec-headers)
-  (handler handler-spec-handler))
-
-(define (spec->string spec)
-  (call-with-output-string
-   (lambda (port)
-     (display (handler-spec-method spec) port)
-     (display " " port)
-     (display (handler-spec-path   spec) port)
-     (display " " port)
-     (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
-
-(define (define-route method path headers handler)
-  (list (parse-path path) (handler-spec method path headers handler)))
-
-(define (method-helper method)
-  (case-lambda
-    ((path handler headers) (define-route method path headers handler))
-    ((path handler)         (define-route method path '() handler))))
-
-(define get    (method-helper 'GET))
-(define put    (method-helper 'PUT))
-(define post   (method-helper 'POST))
-(define patch  (method-helper 'PATCH))
-(define delete (method-helper 'DELETE))
-
+;;
 ;;(define test-tree2 (build-route-tree
 ;;                    (list
 ;;                     (get  "/users/:id" user-handler)
@@ -299,254 +238,3 @@
       #f ; reject path traversal attempts
       (file-path
        (string-append "./static/" cleaned)))))
-
-(define (error-template status message)
-  (string-append
-   "<!DOCTYPE html><html><head><style>
-     body{font-family:sans-serif;height:100vh;margin:0;
-          display:flex;flex-direction:column;
-          justify-content:center;align-items:center}
-     h1{margin:0}
-     p{color:#666}
-   </style></head>
-   <body><h1>" status "</h1><p>" message "</p></body></html>"))
-
-(define-record-type <resolution>
-  (resolution ok results)
-  resolution?
-  (ok      resolution-resolved?)
-  (results resolution-results))
-
-;; response shite
-(define-record-type <response>
-  (make-response body headers status)
-  response?
-  (body     response-body)
-  (headers  response-headers)
-  (status   response-status-code))
-
-(define-record-type <response-body>
-  (body content)
-  response-body?
-  (content response-body-content))
-
-(define-record-type <response-header>
-  (header name value)
-  response-header?
-  (name response-header-name)
-  (value response-header-value))
-
-(define-record-type <response-status>
-  (status code)
-  response-status?
-  (code response-status))
-
-(define (cookie name value)
-  (let ((cookie (make-set-cookie name value (hash) '())))
-    (header "Set-Cookie" (set-cookie->string cookie))))
-
-(define (respond-with . forms)
-  (let loop ((forms forms)
-             (body #f)
-             (headers '())
-             (status 200))
-    (if (null? forms)
-      (make-response body headers status)
-      (let ((form (car forms))
-            (rest (cdr forms)))
-        (cond
-         ((response-body? form)
-          (loop rest (response-body-content form) headers status))
-         ((response-header? form)
-          (loop rest body
-                (cons (cons (response-header-name form)
-                            (response-header-value form))
-                      headers)
-                status))
-         ((response-status? form)
-          (loop rest body headers (response-status-code form))))))))
-
-;; todo: add a sequence type that does multiple things to the response
-;; idea:
-;; (respond-with
-;;   (body "Hello!")
-;;   (header "Content-Type" "text/html")
-;;   (cookie "foo" "bar")
-;;   (status 200))
-(define (process-response resolve response res)
-  (cond
-   ((string? response)
-    (http-response-write res 200 '() response)
-    (resolve (resolution #t '())))
-   ((file-path? response)
-    (http-response-file res '() (file-path-get response))
-    (resolve (resolution #t '())))
-   ((pair? response)
-    (if (list? response)
-      ;; (status headers body)
-      (let ((status   (car   response))
-            (headers  (cadr  response))
-            (body     (caddr response)))
-        (http-response-write res status headers body))
-      ;; (status . body)
-      (let ((status   (car   response))
-            (body     (cdr   response)))
-        (http-response-write res status '() body)))
-    (resolve (resolution #t '())))
-   ((response? response)
-    (http-response-write res
-                         (response-status-code response)
-                         (response-headers response)
-                         (response-body-content response))
-    (resolve (resolution #t '())))))
-
-;; routes is a list of list|route (will be recursively flattened)
-;; static-handler is either 'default, or a handler that takes a path
-;; recovery is either 'default, or a function that takes a rejection, and produces a response
-(define (router static recovery routes)
-  (define (subset? list1 list2)
-    (every
-     (lambda (x)
-       (member x list2))
-     list1))
-
-  (define (flatten-rec lst)
-    (cond
-     ((null? lst) '())
-     ;; If it's a route (list of 2 elements), keep it intact
-     ((and (pair? lst)
-           (= (length lst) 2)
-           (list? (car lst)))
-      (list lst))
-     ;; Otherwise recurse into nested lists
-     ((pair? (car lst))
-      (append (flatten-rec (car lst))
-              (flatten-rec (cdr lst))))
-     (else
-      (cons (car lst)
-            (flatten-rec (cdr lst))))))
-
-  (define (default-static-handler path)
-    (sanitize-static-path path))
-
-  (define (default-recovery rejection)
-    (error-template
-     (symbol->string (car rejection))
-     (cdr rejection)))
-
-  (let* ((routes           (flatten-rec routes))
-         (route-tree       (build-route-tree routes))
-         (static-handler   (if (eq? 'default static)
-                             default-static-handler
-                             static))
-         (recovery-handler (if (eq? 'default recovery)
-                             default-recovery
-                             recovery)))
-    (eprintf "using default static handler: ~a\n"
-             (eq? 'default static))
-    (eprintf "using default recovery handler: ~a\n"
-             (eq? 'default recovery))
-
-    (lambda (req res)
-      (let ((path     (http-request-path    req))
-            (method   (http-request-method  req))
-            (headers  (http-request-headers req))
-            (body     (http-request-body    req)))
-        (let* ((handlers      (find-handlers route-tree path))
-               (by-method     (filter (lambda (spec)
-                                        (eq? method (handler-spec-method spec)))
-                                      handlers))
-               (by-headers    (filter (lambda (spec)
-                                        (subset? (handler-spec-headers spec) headers))
-                                      by-method))
-               ;; we build here pairs of (handler-spec . '(active-segments body))
-               (with-segments (map    (lambda (spec)
-                                        (cons spec
-                                              (list (extract-params (handler-spec-path spec)
-                                                                    path)
-                                                    body
-                                                    headers)))
-                                      by-headers)))
-          (when (= (length with-segments) 0)
-            (display "bempty"))
-
-          (define (exec-handlers)
-            (call/cc
-              (lambda (resolve)
-                (define (iterate handler-pair)
-                  (let* ((spec    (car handler-pair))
-                         (handler (handler-spec-handler spec))
-                         (params  (cdr handler-pair)))
-                    (call/cc
-                      (lambda (continue)
-                        (let ((result (apply handler params)))
-                          (when (rejection? result)
-                            (eprintf "REJECT: ~a\n -> ~a : ~a\n"
-                                     (spec->string    spec)
-                                     (rejection-type result)
-                                     (rejection-msg  result)
-                                     (continue)))
-                          (eprintf "ACCEPT: ~a\n" (spec->string spec))
-                          ;; a handler may return
-                          ;; - a string
-                          ;; - a file-path
-                          ;; - (status . body)
-                          ;; - (status headers body)
-                          ;; - a rejection
-                          (cond
-                           ;; string
-                           ((string?  result)
-                            (http-response-write res 200 '() result)
-                            ;; we responded with a string, bail!
-                            (resolve (resolution #t '())))
-                           ;; file path
-                           ((file-path? result)
-                            (http-response-file res '() (file-path-get result))
-                            ;; we responded with a file, bail!
-                            (resolve (resolution #t '())))
-                           ;; pair or list
-                           ((pair? result)
-                            (if (list? result)
-                              ;; (status headers body)
-                              (let ((status   (car   result))
-                                    (headers  (cadr  result))
-                                    (body     (caddr result)))
-                                (http-response-write res status headers body))
-                              ;; (status . body)
-                              (let ((status   (car   result))
-                                    (body     (cdr   result)))
-                                (http-response-write res status '() body)))
-                            ;; we responded with a status and possibly headers, bail!
-                            (resolve (resolution #t '())))))))))
-                ;; we return from the continuation on success
-                ;; so we resolve with a failure if we didnt
-                (let ((rejections (map iterate with-segments)))
-                  (resolve (resolution #f rejections))))))
-          ;; if no handler was good
-          ;; (either because all failed or none were valid)
-          ;; we try the static file handler
-          ;;
-          ;; if that does not work either, we show 404
-          (let ((reso (exec-handlers)))
-            (eprintf "resolution: ~a ~a\n" (resolution-resolved? reso) (resolution-results reso))
-            (unless (resolution-resolved? reso)
-              (let ((static-result (static-handler path)))
-                (if (rejection? static-result)
-                  (let ((error-response (recovery-handler (rejection 'not-found
-                                                                     "No response was found to your request"))))
-                    (http-response-write res 404 '() error-response))
-                  ;; Actually serve the file if we got a valid file-path
-                  (http-response-file res '() (file-path-get static-result)))))))))))
-
-(define (run-server routes . args)
-  (define port (pget port: args 8080))
-  (define address (pget address: args "127.0.0.1"))
-  (define static (pget static: args 'default))
-  (define recovery (pget recovery: args 'default))
-
-  (let* ((addr (format "~a:~a" address port))
-         (handler (router static recovery routes))
-         (server (start-http-server!
-                  addr
-                  mux: (make-default-http-mux handler))))
-    (thread-join! server)))

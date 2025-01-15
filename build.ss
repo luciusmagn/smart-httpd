@@ -7,4 +7,9 @@
     "smart-httpd/cookie"
     "smart-httpd/conversions"
     "smart-httpd/rejection"
+    "smart-httpd/server"
+    "smart-httpd/router"
+    "smart-httpd/response"
+    "smart-httpd/resolution"
+    "smart-httpd/handler"
     (exe: "smart-httpd/main" bin: "smart-httpd")))
