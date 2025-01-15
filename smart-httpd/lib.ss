@@ -284,7 +284,6 @@
                       ((,(segment-exact "posts"))
                        ,posts-handler))))
 
-
 (define-record-type <handler-spec>
   (handler-spec method path headers handler)
   handler-spec?
@@ -387,6 +386,90 @@
    </style></head>
    <body><h1>" status "</h1><p>" message "</p></body></html>"))
 
+(define-record-type <resolution>
+  (resolution ok results)
+  resolution?
+  (ok      resolution-resolved?)
+  (results resolution-results))
+
+;; response shite
+
+(define-record-type <response-body>
+  (body content)
+  response-body?
+  (content response-body-content))
+
+(define-record-type <response-header>
+  (header name value)
+  response-header?
+  (name response-header-name)
+  (value response-header-value))
+
+(define-record-type <response-status>
+  (status code)
+  response-status?
+  (code response-status-code))
+
+(define (cookie name value)
+  (let ((cookie (make-set-cookie name value (hash) '())))
+    (header "Set-Cookie" (set-cookie->string cookie))))
+
+(define (respond-with . forms)
+  (let loop ((forms forms)
+             (body #f)
+             (headers '())
+             (status 200))
+    (if (null? forms)
+      (make-response body headers status)
+      (let ((form (car forms))
+            (rest (cdr forms)))
+        (cond
+         ((response-body? form)
+          (loop rest (response-body-content form) headers status))
+         ((response-header? form)
+          (loop rest body
+                (cons (cons (response-header-name form)
+                            (response-header-value form))
+                      headers)
+                status))
+         ((response-status? form)
+          (loop rest body headers (response-status-code form))))))))
+
+;; todo: add a sequence type that does multiple things to the response
+;; idea:
+;; (respond-with
+;;   (body "Hello!")
+;;   (header "Content-Type" "text/html")
+;;   (cookie "foo" "bar")
+;;   (status 200))
+(define (process-response resolve response res)
+  (cond
+   ((string? response)
+    (http-response-write res 200 '() response)
+    (resolve (resolution #t '())))
+   ((file-path? response)
+    (http-response-file res '() (file-path-get response))
+    (resolve (resolution #t '())))
+   ((pair? response)
+    (if (list? response)
+      ;; (status headers body)
+      (let ((status   (car   response))
+            (headers  (cadr  response))
+            (body     (caddr response)))
+        (http-response-write res status headers body))
+      ;; (status . body)
+      (let ((status   (car   response))
+            (body     (cdr   response)))
+        (http-response-write res status '() body)))
+    (resolve (resolution #t '())))
+   ((response? response)
+    ;; TODO! Add response type
+    (http-response-write res
+                         (response-status-code response)
+                         (response-headers response)
+                         (response-body-content response))
+    (resolve (resolution #t '())))))
+
 ;; routes is a list of list|route (will be recursively flattened)
 ;; static-handler is either 'default, or a handler that takes a path
 ;; recovery is either 'default, or a function that takes a rejection, and produces a response
@@ -420,12 +503,6 @@
     (error-template
      (symbol->string (car rejection))
      (cdr rejection)))
-
-  (define-record-type <resolution>
-    (resolution ok results)
-    resolution?
-    (ok      resolution-resolved?)
-    (results resolution-results))
 
   (let* ((routes           (flatten-rec routes))
          (route-tree       (build-route-tree routes))
