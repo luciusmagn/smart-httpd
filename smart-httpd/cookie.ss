@@ -19,18 +19,18 @@
   (attrs set-cookie-attrs)
   (flags set-cookie-flags))
 
-(def (parse-cookie str)
+(define (parse-cookie str)
   (let* ((parts (string-split str #\=))
          (name (string-trim (car parts)))
          (value (string-trim (cadr parts))))
     (make-request-cookie name value)))
 
-(def (parse-cookies str)
+(define (parse-cookies str)
   (map parse-cookie
        (filter (lambda (s) (string-contains s "="))  ; skip empty parts
                (string-split str #\;))))
 
-(def (set-cookie->string cookie)
+(define (set-cookie->string cookie)
   (let ((parts (list (string-append
                       (set-cookie-name cookie)
                       "="
