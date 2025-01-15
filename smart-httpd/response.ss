@@ -13,6 +13,7 @@
         :std/srfi/13
         ./conversions
         ./rejection
+        ./resolution
         ./cookie)
 (export #t)
 

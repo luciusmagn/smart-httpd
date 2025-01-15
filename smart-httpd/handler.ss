@@ -8,10 +8,80 @@
         :std/misc/string
         :std/format
         :std/srfi/9
-        :std/srfi/1
         :std/srfi/13
-        ./conversions)
+        ./conversions
+        ./response
+        ./rejection)
 (export #t)
+
+(define (extract-params pattern url)
+  (define pat-parts
+    (filter (lambda (x) (not (equal? x "")))
+            (string-split pattern #\/)))
+  (define url-parts
+    (filter (lambda (x) (not (equal? x "")))
+            (string-split url #\/)))
+
+  (if (not (= (length pat-parts) (length url-parts)))
+    (rejection 'mismatched "Wrong number of URL segments")
+    (filter-map (lambda (pat url-part)
+                  (and (char=? (string-ref pat 0) #\:)
+                       url-part))
+                pat-parts
+                url-parts)))
+
+(define (sanitize-static-path url-path)
+  (let ((cleaned (string-trim-prefix "/static/" url-path)))
+    (if (string-contains cleaned "..")
+      #f ; reject path traversal attempts
+      (file-path
+       (string-append "./static/" cleaned)))))
+
+(define-record-type <segment-exact>
+  (segment-exact   name)
+  segment-exact?
+  (name          segment-exact-name))
+
+(define-record-type <segment-dynamic>
+  (segment-dynamic name)
+  segment-dynamic?
+  (name            segment-dynamic-name))
+
+(define (segment-type segment)
+  (cond
+   ((segment-exact?   segment) 'exact)
+   ((segment-dynamic? segment) 'dynamic)
+   (else #f)))
+
+(define (parse-path path)
+  (define (parse segment)
+    (if (string-prefix? ":" segment)
+      (segment-dynamic segment)
+      (segment-exact   segment)))
+
+  (let* ((cleaned  (if (string-prefix? "/" path)
+                     (list->string (cdr (string->list path)))
+                     path))
+         (segments (string-split cleaned #\/))
+         (parsed   (map parse segments)))
+    parsed))
+
+(define (print-path path)
+  (if (null? path)
+    (displayln "end")
+    (let ((current (car path)))
+      (cond
+       ((segment-exact?   current)
+        (display   "  exact: ")
+        (displayln (segment-exact-name   current)))
+
+       ((segment-dynamic? current)
+        (display   "dynamic: ")
+        (displayln (segment-dynamic-name current)))
+
+       (else (displayln "invalid segment")))
+
+      (print-path (cdr path)))))
 
 (define-record-type <handler-spec>
   (handler-spec method path headers handler)
