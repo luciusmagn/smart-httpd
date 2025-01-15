@@ -277,12 +277,12 @@
 (define (user-handler)  (void))
 (define (posts-handler) (void))
 
-(define test-treee (build-route-tree
-                    `(((,(segment-exact "users")
-                        ,(segment-dynamic "id"))
-                       ,user-handler)
-                      ((,(segment-exact "posts"))
-                       ,posts-handler))))
+;;(define test-treee (build-route-tree
+;;                    `(((,(segment-exact "users")
+;;                        ,(segment-dynamic "id"))
+;;                       ,user-handler)
+;;                      ((,(segment-exact "posts"))))))
+;;                       ,posts-handler))))
 
 (define-record-type <handler-spec>
   (handler-spec method path headers handler)
@@ -315,12 +315,12 @@
 (define patch  (method-helper 'PATCH))
 (define delete (method-helper 'DELETE))
 
-(define test-tree2 (build-route-tree
-                    (list
-                     (get  "/users/:id" user-handler)
-                     (post "/users/:id" user-handler)
-                     (get  "/posts"     posts-handler)
-                     (post "/"          user-handler))))
+;;(define test-tree2 (build-route-tree
+;;                    (list
+;;                     (get  "/users/:id" user-handler)
+;;                     (post "/users/:id" user-handler)
+;;                     (get  "/posts"     posts-handler))))
+;;                     (post "/"          user-handler))))
 
 (define (find-handlers tree path)
   (define (match-segment seg1 seg2)
