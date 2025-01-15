@@ -393,6 +393,12 @@
   (results resolution-results))
 
 ;; response shite
+(define-record-type <response>
+  (make-response body headers status)
+  response?
+  (body     response-body)
+  (headers  response-headers)
+  (status   response-status-code))
 
 (define-record-type <response-body>
   (body content)
