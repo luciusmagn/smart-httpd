@@ -139,6 +139,7 @@
                       ((headers-extractor? conv) (validate ((extractor-fn conv) (list headers))))
                       ((body-extractor? conv)    (validate ((extractor-fn conv) body-data)))
                       (else
+                       (displayln "invalid conversion")
                        (reject (rejection 'invalid-conv "Invalid conversion"))))) ...)
             (let ((body (if (string? body-data)
                           ((extractor-fn bconv) body-data)
