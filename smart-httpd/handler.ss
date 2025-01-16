@@ -147,7 +147,7 @@
                       ((headers-extractor? conv)
                        (try
                         (displayln ((extractor-fn conv) headers))
-                        (catch (e) ))
+                        (catch (e) (printf "error: ~a\n" e)))
                        (displayln "headers")
                        (validate ((extractor-fn conv) headers)))
                       ((body-extractor? conv)
