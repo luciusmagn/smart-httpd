@@ -145,7 +145,9 @@
                        (displayln "segment")
                        (validate ((extractor-fn conv) (pop-ptr))))
                       ((headers-extractor? conv)
-                       (displayln ((extractor-fn conv) headers))
+                       (try
+                        (displayln ((extractor-fn conv) headers))
+                        (catch (e) ))
                        (displayln "headers")
                        (validate ((extractor-fn conv) headers)))
                       ((body-extractor? conv)
