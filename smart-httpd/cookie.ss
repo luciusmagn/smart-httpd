@@ -30,6 +30,17 @@
        (filter (lambda (s) (string-contains s "="))  ; skip empty parts
                (string-split str #\;))))
 
+(define (print-cookie cookie)
+  (cond
+   ((request-cookie? cookie)
+    (displayln "name: ~a\n" (request-cookie-name cookie))
+    (displayln "value: ~a\n" (request-cookie-value cookie)))
+   ((set-cookie? cookie)
+    (displayln "name: ~a\n" (set-cookie-name cookie))
+    (displayln "value: ~a\n" (set-cookie-value cookie))
+    (displayln "attrs: ~a\n" (set-cookie-attrs cookie))
+    (displayln "flags: ~a\n" (set-cookie-flags cookie)))))
+
 (define (set-cookie->string cookie)
   (let ((parts (list (string-append
                       (set-cookie-name cookie)
