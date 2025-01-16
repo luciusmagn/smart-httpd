@@ -27,6 +27,7 @@
     (make-request-cookie name value)))
 
 (define (parse-cookies str)
+  (displayln "arsing cookies")
   (map parse-cookie
        (filter (lambda (s) (string-contains s "="))  ; skip empty parts
                (string-split str #\;))))
