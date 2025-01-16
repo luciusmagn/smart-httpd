@@ -30,18 +30,18 @@
   (status   response-status-code))
 
 (define-record-type <response-body>
-  (body content)
+  (:body content)
   response-body?
   (content response-body-content))
 
 (define-record-type <response-header>
-  (header name value)
+  (:header name value)
   response-header?
   (name response-header-name)
   (value response-header-value))
 
 (define-record-type <response-status>
-  (status code)
+  (:status code)
   response-status?
   (code response-status))
 
