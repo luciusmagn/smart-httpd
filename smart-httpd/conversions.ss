@@ -70,7 +70,7 @@
     (let ((str (assget "Cookie" headers)))
       (if (string? str)
         (parse-cookies str)
-        (parse-cookies "")))))
+        '()))))
 
 (define-body-extractor
   :>form
