@@ -51,7 +51,7 @@
 (define (find-cookie-val cookies name)
   (let (ck (find-cookie cookies name))
     (if ck
-      (request-cookie-value cookie)
+      (request-cookie-value ck)
       #f)))
 
 (define (set-cookie->string cookie)
