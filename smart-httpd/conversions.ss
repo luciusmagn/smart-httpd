@@ -68,6 +68,7 @@
   (lambda (headers)
     (displayln "DEBUG: reading cookie...")
     (let ((str (assget "Cookie" headers)))
+      (displayln "COOOOOOOOOOOOOOOOOOOKIE")
       (if (string? str)
         (parse-cookies str)
         '()))))
