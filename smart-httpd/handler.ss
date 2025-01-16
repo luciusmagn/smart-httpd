@@ -140,19 +140,19 @@
             (else converted)))
 
          (try
-          (let ((var (begin
-                       (displayln "--- conversions")
-                       (displayln (segment-extractor? conv))
-                       (displayln (headers-extractor? conv))
-                       (displayln (body-extractor? conv))
-                       (displayln "--- endconversions")
-                       (cond
-                        ((segment-extractor? conv) (validate ((extractor-fn conv) (pop-ptr))))
-                        ((headers-extractor? conv) (validate ((extractor-fn conv) headers)))
-                        ((body-extractor? conv)    (validate ((extractor-fn conv) body-data)))
-                        (else
-                         (displayln "invalid conversion")
-                         (reject (rejection 'invalid-conv "Invalid conversion"))))) ...))
+          (let ((var (cond
+                      ((segment-extractor? conv)
+                       (displayln "segment")
+                       (validate ((extractor-fn conv) (pop-ptr))))
+                      ((headers-extractor? conv)
+                       (displayln "headers")
+                       (validate ((extractor-fn conv) headers)))
+                      ((body-extractor? conv)
+                       (displayln "body")
+                       (validate ((extractor-fn conv) body-data)))
+                      (else
+                       (displayln "invalid conversion")
+                       (reject (rejection 'invalid-conv "Invalid conversion"))))) ...)
             (let ((body (if (string? body-data)
                           ((extractor-fn bconv) body-data)
                           ((extractor-fn bconv) ""))))
