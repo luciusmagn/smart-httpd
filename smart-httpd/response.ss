@@ -46,11 +46,11 @@
   (code response-status))
 
 (define (cookie name value)
-  (let ((cookie (make-set-cookie name value (hash) '())))
+  ;; TODO: Set reasonable defaults, allow adding attributes and flags
+  (let ((cookie (make-set-cookie name value '() '())))
     (header "Set-Cookie" (set-cookie->string cookie))))
 
 (define (respond-with . forms)
-  (displayln "piss nigga")
   (let loop ((forms forms)
              (body "")
              (headers '())
