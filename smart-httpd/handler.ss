@@ -145,6 +145,7 @@
                        (displayln "segment")
                        (validate ((extractor-fn conv) (pop-ptr))))
                       ((headers-extractor? conv)
+                       (displayln "headers")
                        (try
                         (displayln ((extractor-fn conv) headers))
                         (catch (e) (printf "error: ~a\n" e)))

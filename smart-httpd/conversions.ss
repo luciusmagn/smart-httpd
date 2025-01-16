@@ -63,7 +63,11 @@
      (catch (e)
        (rejection 'invalid-json "Failed to parse JSON")))))
 
-(define-headers-extractor :>cookies parse-cookies)
+(define-headers-extractor
+  :>cookies
+  (lambda (headers)
+    (displayln headers)
+    parse-cookies))
 
 
 (define-body-extractor
