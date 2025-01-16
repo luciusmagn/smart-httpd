@@ -72,6 +72,7 @@
 
 
   (define (default-static-handler path)
+    (printf "static: ~a\n" path)
     (sanitize-static-path path))
 
   (define (default-recovery rejection)

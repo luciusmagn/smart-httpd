@@ -30,12 +30,16 @@
                 pat-parts
                 url-parts)))
 
+
 (define (sanitize-static-path url-path)
   (let ((cleaned (string-trim-prefix "/static/" url-path)))
-    (if (string-contains cleaned "..")
-      #f ; reject path traversal attempts
-      (file-path
-       (string-append "./static/" cleaned)))))
+    (cond
+     ((string-contains cleaned "..") #f)  ; reject path traversal attempts
+     ((directory-exists? (string-append "./static/" cleaned))
+      "") ;; TODO: implement proper rejection for directories
+
+     (else (file-path
+            (string-append "./static/" cleaned))))))
 
 (define-record-type <segment-exact>
   (segment-exact   name)
