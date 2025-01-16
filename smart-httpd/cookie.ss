@@ -48,6 +48,12 @@
           (equal? name (request-cookie-name c)))
         cookies))
 
+(define (find-cookie-val cookies name)
+  (let (ck (find-cookie cookies name))
+    (if ck
+      (request-cookie-value cookie)
+      #f)))
+
 (define (set-cookie->string cookie)
   (let ((parts (list (string-append
                       (set-cookie-name cookie)
