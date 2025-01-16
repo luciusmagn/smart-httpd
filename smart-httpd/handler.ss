@@ -140,7 +140,7 @@
          (try
           (let ((var (cond
                       ((segment-extractor? conv) (validate ((extractor-fn conv) (pop-ptr))))
-                      ((headers-extractor? conv) (validate ((extractor-fn conv) (list headers))))
+                      ((headers-extractor? conv) (validate ((extractor-fn conv) headers)))
                       ((body-extractor? conv)    (validate ((extractor-fn conv) body-data)))
                       (else
                        (displayln "invalid conversion")
