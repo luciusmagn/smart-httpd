@@ -38,7 +38,7 @@
     (cond
      ((string-contains cleaned "..") #f)  ; reject path traversal attempts
      ((directory-exists? (string-append "./static/" cleaned))
-      #f) ;; TODO: implement proper rejection for directories
+      "Path is directory") ;; TODO: implement proper rejection for directories
 
      (else (file-path
             (string-append "./static/" cleaned))))))
