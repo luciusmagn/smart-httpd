@@ -66,9 +66,10 @@
 (define-headers-extractor
   :>cookies
   (lambda (headers)
-    (displayln headers)
-    parse-cookies))
-
+    (let ((str (assget "Cookie" headers)))
+      (if (string? st)
+        (parse-cookies str)
+        (parse-cookies "")))))
 
 (define-body-extractor
   :>form
