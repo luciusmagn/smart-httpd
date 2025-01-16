@@ -30,8 +30,10 @@
                 pat-parts
                 url-parts)))
 
-
 (define (sanitize-static-path url-path)
+  (define (directory-exists? path)
+    (eq? 'directory (file-type path)))
+
   (let ((cleaned (string-trim-prefix "/static/" url-path)))
     (cond
      ((string-contains cleaned "..") #f)  ; reject path traversal attempts
