@@ -67,7 +67,7 @@
   :>cookies
   (lambda (headers)
     (let ((str (assget "Cookie" headers)))
-      (if (string? st)
+      (if (string? str)
         (parse-cookies str)
         (parse-cookies "")))))
 
