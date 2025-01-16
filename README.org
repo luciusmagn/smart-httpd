@@ -7,6 +7,12 @@ Add to your =.gerbil/pkg= directory:
 git clone https://github.com/luciusmagn/smart-httpd .gerbil/pkg/smart-httpd
 #+end_src
 
+Alternatively install it properly via:
+
+#+begin_src
+gerbil pkg deps -a github.com/luciusmagn/smart-httpd
+#+end_src
+
 ** Quick Start
 #+begin_src scheme
 (import :smart-httpd)
