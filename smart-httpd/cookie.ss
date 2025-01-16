@@ -1,5 +1,6 @@
 ;;; -*- Gerbil -*-
 (import :std/sugar
+        :std/format
         :std/misc/hash
         :std/srfi/9
         :std/srfi/13)
