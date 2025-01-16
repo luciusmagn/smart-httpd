@@ -26,8 +26,8 @@
 (define respond-with-handler
   (handler () <- (_ :>)
            (respond-with
-            (status 200)
-            (body   "Hello World! This time combined"))))
+            (:status 200)
+            (:body   "Hello World! This time combined"))))
 
 (def routes
   (list

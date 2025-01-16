@@ -90,9 +90,9 @@ Handlers can return responses in multiple ways:
 ;; Using response builder
 (handler () <- (_ :>)
  (respond-with
-   (status 200)
-   (header "Content-Type" "text/plain")
-   (body "Hello World!")))
+   (:status 200)
+   (:header "Content-Type" "text/plain")
+   (:body "Hello World!")))
 #+end_src
 
 ** Cookie Handling
@@ -110,9 +110,9 @@ Cookies can be read and set:
 ;; Setting cookies
 (handler () <- (_ :>)
  (respond-with
-   (status 200)
-   (cookie "session" "abc123")
-   (body "Cookie set!")))
+   (:status 200)
+   (:cookie "session" "abc123")
+   (:body "Cookie set!")))
 #+end_src
 
 ** Header Access
