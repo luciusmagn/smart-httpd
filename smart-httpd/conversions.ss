@@ -66,6 +66,7 @@
 (define-headers-extractor
   :>cookies
   (lambda (headers)
+    (displayln "DEBUG: reading cookie...")
     (let ((str (assget "Cookie" headers)))
       (if (string? str)
         (parse-cookies str)
