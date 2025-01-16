@@ -47,7 +47,7 @@
 
 (define (cookie name value)
   ;; TODO: Set reasonable defaults, allow adding attributes and flags
-  (let ((cookie (make-set-cookie name value '() '())))
+  (let ((cookie (make-set-cookie name value (make-hash-table) '())))
     (header "Set-Cookie" (set-cookie->string cookie))))
 
 (define (respond-with . forms)
