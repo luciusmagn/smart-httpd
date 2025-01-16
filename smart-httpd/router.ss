@@ -48,9 +48,17 @@
                    (string=? (segment-exact-name seg1)
                              (segment-exact-name seg2)))))
 
-        (printf "zipped length: ~a\n" (length (zip route-segments path-segments)))
         (every (lambda (pair) (apply match-segment pair))
                (zip route-segments path-segments))))))
+
+(define (flatten-rec lst)
+  (if (null? lst)
+    '()
+    (let ((first (car lst))
+          (rest (cdr lst)))
+      (if (list? first)
+        (append (flatten-rec first) (flatten-rec rest))
+        (cons first (flatten-rec rest))))))
 
 ;; routes is a list of list|route (will be recursively flattened)
 ;; static-handler is either 'default, or a handler that takes a path
@@ -62,21 +70,6 @@
        (member x list2))
      list1))
 
-  (define (flatten-rec lst)
-    (cond
-     ((null? lst) '())
-     ;; If it's a route (list of 2 elements), keep it intact
-     ((and (pair? lst)
-           (= (length lst) 2)
-           (list? (car lst)))
-      (list lst))
-     ;; Otherwise recurse into nested lists
-     ((pair? (car lst))
-      (append (flatten-rec (car lst))
-              (flatten-rec (cdr lst))))
-     (else
-      (cons (car lst)
-            (flatten-rec (cdr lst))))))
 
   (define (default-static-handler path)
     (sanitize-static-path path))
@@ -182,7 +175,6 @@
           ;;
           ;; if that does not work either, we show 404
           (let ((reso (exec-handlers)))
-            (eprintf "resolution: ~a ~a\n" (resolution-resolved? reso) (resolution-results reso))
             (unless (resolution-resolved? reso)
               (let ((static-result (static-handler path)))
                 (if (rejection? static-result)

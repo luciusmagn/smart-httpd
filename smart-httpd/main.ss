@@ -24,12 +24,10 @@
 (def routes
   (list
    (get "/"       test-handler)
-   (get "/bung"   test-handler)
-   (get "/bung/b" test-handler)
-   (get "/file"   test-handler-file)))
-
-(define rt (build-route-tree routes))
-(print-route-tree rt)
+   (list
+    (get "/bung"   test-handler)
+    (get "/file"   test-handler-file))
+   (get "/bung/b" test-handler)))
 
 (define (main . args)
   (displayln "running on port 8080")
