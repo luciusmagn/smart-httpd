@@ -140,31 +140,7 @@
                           ;; - (status . body)
                           ;; - (status headers body)
                           ;; - a rejection
-                          (cond
-                           ;; string
-                           ((string?  result)
-                            (http-response-write res 200 '() result)
-                            ;; we responded with a string, bail!
-                            (resolve (resolution #t '())))
-                           ;; file path
-                           ((file-path? result)
-                            (http-response-file res '() (file-path-get result))
-                            ;; we responded with a file, bail!
-                            (resolve (resolution #t '())))
-                           ;; pair or list
-                           ((pair? result)
-                            (if (list? result)
-                              ;; (status headers body)
-                              (let ((status   (car   result))
-                                    (headers  (cadr  result))
-                                    (body     (caddr result)))
-                                (http-response-write res status headers body))
-                              ;; (status . body)
-                              (let ((status   (car   result))
-                                    (body     (cdr   result)))
-                                (http-response-write res status '() body)))
-                            ;; we responded with a status and possibly headers, bail!
-                            (resolve (resolution #t '())))))))))
+                          (process-response resolve result res))))))
                 ;; we return from the continuation on success
                 ;; so we resolve with a failure if we didnt
                 (let ((rejections (map iterate with-segments)))

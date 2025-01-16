@@ -50,33 +50,33 @@
     (header "Set-Cookie" (set-cookie->string cookie))))
 
 (define (respond-with . forms)
+  (displayln "piss nigga")
   (let loop ((forms forms)
-             (body #f)
+             (body "")
              (headers '())
              (status 200))
+    (displayln forms)
     (if (null? forms)
-      (make-response body headers status)
+      (begin
+        (displayln "finished response")
+        (make-response body headers status))
       (let ((form (car forms))
             (rest (cdr forms)))
         (cond
          ((response-body? form)
+          (displayln "write body")
           (loop rest (response-body-content form) headers status))
          ((response-header? form)
+          (displayln "write header")
           (loop rest body
                 (cons (cons (response-header-name form)
                             (response-header-value form))
                       headers)
                 status))
          ((response-status? form)
-          (loop rest body headers (response-status-code form))))))))
+          (displayln "write status")
+          (loop rest body headers (response-status form))))))))
 
-;; todo: add a sequence type that does multiple things to the response
-;; idea:
-;; (respond-with
-;;   (body "Hello!")
-;;   (header "Content-Type" "text/html")
-;;   (cookie "foo" "bar")
-;;   (status 200))
 (define (process-response resolve response res)
   (cond
    ((string? response)
@@ -98,8 +98,9 @@
         (http-response-write res status '() body)))
     (resolve (resolution #t '())))
    ((response? response)
+    (displayln "writing response")
     (http-response-write res
                          (response-status-code response)
-                         (response-headers response)
-                         (response-body-content response))
+                         (response-headers     response)
+                         (response-body        response))
     (resolve (resolution #t '())))))
