@@ -43,6 +43,11 @@
     (printf "attrs: ~a\n" (set-cookie-attrs cookie))
     (printf "flags: ~a\n" (set-cookie-flags cookie)))))
 
+(define (find-cookie cookies name)
+  (find (lambda (c)
+          (equal? name (request-cookie-name c)))
+        cookies))
+
 (define (set-cookie->string cookie)
   (let ((parts (list (string-append
                       (set-cookie-name cookie)
