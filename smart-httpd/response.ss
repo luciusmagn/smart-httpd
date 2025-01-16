@@ -45,7 +45,7 @@
   response-status?
   (code response-status))
 
-(define (cookie name value)
+(define (:cookie name value)
   ;; TODO: Set reasonable defaults, allow adding attributes and flags
   (let ((cookie (make-set-cookie name value (make-hash-table) '())))
     (:header "Set-Cookie" (set-cookie->string cookie))))
