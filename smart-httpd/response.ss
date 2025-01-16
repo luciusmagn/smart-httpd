@@ -51,6 +51,7 @@
     (header "Set-Cookie" (set-cookie->string cookie))))
 
 (define (respond-with . forms)
+  (displayln "brongus")
   (let loop ((forms forms)
              (body "")
              (headers '())
