@@ -38,7 +38,7 @@
     (cond
      ((string-contains cleaned "..") #f)  ; reject path traversal attempts
      ((directory-exists? (string-append "./static/" cleaned))
-      "Path is directory") ;; TODO: implement proper rejection for directories
+      #f) ;; TODO: implement proper rejection for directories
 
      (else (file-path
             (string-append "./static/" cleaned))))))
@@ -138,6 +138,12 @@
             ((boolean?   converted) (when (not converted) (reject converted)))
             ((rejection? converted) (reject converted))
             (else converted)))
+
+         (displayln "--- conversions")
+         (displayln (segment-extractor? conv))
+         (displayln (headers-extractor? conv))
+         (displayln (body-extractor? conv))
+         (displayln "--- endconversions")
 
          (try
           (let ((var (cond
