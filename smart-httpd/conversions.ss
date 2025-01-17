@@ -74,6 +74,12 @@
         (parse-cookies str)
         '()))))
 
+(define-headers-extractor
+  :>headers
+  (lambda (headers)
+    headers))
+
+
 (define-body-extractor
   :>form
   (lambda (body)
