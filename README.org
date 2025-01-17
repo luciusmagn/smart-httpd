@@ -19,49 +19,77 @@ gerbil pkg deps -a github.com/luciusmagn/smart-httpd
 
 ;; Define a handler with type-safe parameters
 (define greet-handler
-  (handler ((name :>string)) <- (body :>)
-           (string-append "Hello, " name "!")))
+ (handler ((name :>string)) <- (body :>)
+          (string-append "Hello, " name "!")))
 
 ;; Define routes
 (define routes
-  (list
-    (get "/greet/:name" greet-handler)))
+ (list
+   (get "/greet/:name" greet-handler)))
 
 ;; Start server
 (run-server routes port: 8080)
 #+end_src
 
-** Handlers
-Handlers are defined using the =handler= macro which provides type-safe parameter extraction:
+** Core Concepts
+Router finds all matching routes, then tries them in order until we find one that does not reject the request.
+Use rejections to define handlers that are otherwise ambiguous.
 
+For instance, the route definition can require that a request has the =Content-Type= header, but not its value.
+You can have multiple handlers for procecssing multiple formats, that each reject the other formats.
+
+I stole the concept of rejections from the Rust Warp framework.
+
+*** Handlers
+Handlers are the core building blocks of smart-httpd applications. They process incoming requests and produce responses.
+
+**** Basic Handler Structure
 #+begin_src scheme
-;; body conversion can be omitted with :>
-(define echo-handler
-  (handler () <- (body :>)
-           body))
-
-;; JSON body handling
-(define json-handler
-  (handler () <- (body :>json)
-           (let ((name (hash-ref body 'name))
-                 (age  (hash-ref body 'age)))
-             (string-append "Hello " name ", you are " (number->string age)))))
-
-;; Form data handling
-(define form-handler
-  (handler () <- (body :>form)
-           (let ((username (hash-ref body 'username))
-                 (password (hash-ref body 'password)))
-             (string-append "Login attempt by: " username))))
-
-;; params are defined like this
-;; this request ignores the body
-(define add-handler
-  (handler ((a :>number) (b :>number)) <- (_ :>)
-           (number->string (+ a b))))
+(handler (param-spec/header-spec/aux-body-spec ...) <- (body-spec)
+        body ...)
 #+end_src
 
-Available type converters:
+Where:
+- =param-spec= is =(name converter)= for URL parameters
+- =header-spec= is =(name converter)= for values derived from headers (such as cookies)
+- =aux-body-spec= is =(name converter)= for values also derived from request body
+- =body-spec= is =(name converter)= for request body
+- =body ...= is the handler logic
+
+You can define your own converter (aka extractors) like this:
+
+#+begin_src scheme
+(define-segment-extractor  :>            (lambda (x) x))
+(define-segment-extractor  :>string      :>) ; yeah
+(define-segment-extractor  :>number      string->number)
+(define-segment-extractor  :>keyword     string->keyword)
+(define-segment-extractor  :>symbol      string->symbol)
+(define-segment-extractor  :>uuid        string->uuid)
+
+(define-body-extractor
+  :>json
+  (lambda (body)
+    (try
+     (if (string? body)
+       (call-with-input-string body read-json)
+       (rejection 'invalid-json "Body is not a valid string"))
+     (catch (e)
+       (rejection 'invalid-json "Failed to parse JSON")))))
+
+(define-headers-extractor
+  :>cookies
+  (lambda (headers)
+    (let ((str (assget "Cookie" headers)))
+      (displayln str)
+      (if (string? str)
+        (parse-cookies str)
+        '()))))
+#+end_src
+
+Your extractors should either reject on invalid input, or return any other falsy value.
+
+**** Parameter Types
+Each parameter can use one of these converters:
 - =:>= - identity (same as :>string)
 - =:>string= - identity
 - =:>number= - string->number
@@ -70,186 +98,418 @@ Available type converters:
 - =:>uuid= - string->uuid
 - =:>json= - parse JSON body into hash table
 - =:>form= - parse x-www-form-urlencoded body into hash table
+- =:>cookies= - parse Cookie header into list of request-cookies
+
+**** Example Handlers
+#+begin_src scheme
+;; Simple echo
+(define echo-handler
+ (handler () <- (body :>)
+          body))
+
+;; JSON handling
+(define json-handler
+ (handler () <- (body :>json)
+          (let ((name (hash-ref body 'name))
+                (age  (hash-ref body 'age)))
+            (string-append "Hello " name ", you are "
+                         (number->string age)))))
+
+;; Form data
+(define form-handler
+ (handler () <- (body :>form)
+          (let ((username (hash-ref body 'username))
+                (password (hash-ref body 'password)))
+            (string-append "Login attempt by: " username))))
+
+;; URL parameters
+(define add-handler
+ (handler ((a :>number) (b :>number)) <- (_ :>)
+          (number->string (+ a b))))
+
+;; Cookies
+(define cookie-handler
+ (handler ((cookies :>cookies)) <- (_ :>)
+          (let ((session-id (find-cookie-val cookies "session")))
+            (if session-id
+                (string-append "Session: " session-id)
+                "No session"))))
+#+end_src
 
 ** Response Handling
-Handlers can return responses in multiple ways:
+
+*** Basic Response Types
+Handlers can return responses in several formats:
 
 #+begin_src scheme
-;; Simple string response (200 OK)
+;; 1. Simple string (200 OK)
 (handler () <- (_ :>)
- "Hello World!")
+        "Hello World!")
 
-;; File response
+;; 2. File response
 (handler () <- (_ :>)
- (file-path "./some-file.txt"))
+        (file-path "./some-file.txt"))
 
-;; Custom response with status and body
+;; 3. Status and body pair
 (handler () <- (_ :>)
- (cons 404 "Not Found"))
+        (cons 404 "Not Found"))
 
-;; Full custom response with headers
+;; 4. Full response tuple
 (handler () <- (_ :>)
- (list 200
-       '(("Content-Type" . "text/plain"))
-       "Hello with headers"))
-
-;; Using response builder
-(handler () <- (_ :>)
- (respond-with
-   (:status 200)
-   (:header "Content-Type" "text/plain")
-   (:body "Hello World!")))
+        (list 200
+              '(("Content-Type" . "text/plain"))
+              "Hello with headers"))
 #+end_src
 
-** Cookie Handling
-Cookies can be read and set:
+*** Response Builder
+The =respond-with= macro provides a clean DSL for building responses:
 
 #+begin_src scheme
-;; Reading cookies
-(handler () <- (cookies :>cookies)
- (let ((session-id (request-cookie-value
-                    (car (filter (lambda (c)
-                                 (equal? "session" (request-cookie-name c)))
-                               cookies)))))
-   ...))
-
-;; Setting cookies
 (handler () <- (_ :>)
- (respond-with
-   (:status 200)
-   (:cookie "session" "abc123")
-   (:body "Cookie set!")))
+        (respond-with
+         (:status 200)
+         (:header "Content-Type" "application/json")
+         (:header "X-Custom" "value")
+         (:cookie "session" "abc123")
+         (:body "{\"status\": \"ok\"}")))
 #+end_src
 
-** Header Access
-Headers can be accessed in handlers:
-
+*** Cookie Management
+**** Reading Cookies
 #+begin_src scheme
-(handler () <- (headers :>headers)
- (let ((auth (assoc "Authorization" headers)))
-   ...))
+(define cookie-reader
+ (handler ((cookies :>cookies)) <- (_ :>)
+          (let ((session-cookie (find-cookie cookies "session")))
+            (if session-cookie
+                (request-cookie-value session-cookie)
+                "No session"))))
 #+end_src
 
-** Routes
-Routes are defined using HTTP method helpers:
+**** Setting Cookies
+#+begin_src scheme
+(define cookie-setter
+ (handler () <- (_ :>)
+          (respond-with
+           (:status 200)
+           (:cookie "session" "abc123")
+           (:cookie "theme" "dark")
+           (:body "Cookies set!"))))
+#+end_src
+
+** Routing
+
+*** Basic Route Definition
+Routes are defined using HTTP method helpers and can be nested:
 
 #+begin_src scheme
 (define routes
-(list
-  (get    "/users/:id" get-user-handler)
-  (post   "/users"     create-user-handler)
-  (put    "/users/:id" update-user-handler)
-  (patch  "/users/:id" patch-user-handler)
-  (delete "/users/:id" delete-user-handler)))
+ (list
+  ;; Basic routes
+  (get    "/users/:id" get-user)
+  (post   "/users"     create-user)
+  (put    "/users/:id" update-user)
+  (delete "/users/:id" delete-user)
+
+  ;; Nested routes
+  (list
+   (get  "/api/v1/posts"     list-posts)
+   (post "/api/v1/posts"     create-post)
+   (list
+    (get "/api/v1/comments"  list-comments)))))
 #+end_src
 
-The list can be infinitely nested and collect routes from across your app:
+*** Route Headers
+Routes can require specific headers:
 
 #+begin_src scheme
-(define user-routes
-  (list
-    (get  "/users"     list-users)
-    (post "/users"     create-user)))
-
-(define post-routes
-  (list
-    (get  "/posts"     list-posts)
-    (post "/posts"     create-post)))
-
-(define routes
-  (list
-    user-routes
-    post-routes))
-#+end_src
-
-** Route Headers
-Routes can require specific headers to be present:
-
-#+begin_src scheme
-;; This route only matches if Authorization header is present
-(get "/protected" protected-handler '("Authorization"))
+;; Single required header
+(get "/protected" handler '("Authorization"))
 
 ;; Multiple required headers
-(post "/api" api-handler '("Authorization" "Content-Type"))
+(post "/api" handler '("Authorization" "Content-Type"))
 #+end_src
 
-** Static Files
-To serve static files (from elsewhere than default =./static/=), provide a custom handler to the router:
+** Error Handling
+
+*** Rejection System
+The framework uses a rejection system for handling errors:
 
 #+begin_src scheme
-(define my-static-handler
-  (lambda (path)
-    (file-path (string-append "./public/" path))))
-
-(run-server routes
-port: 8080
-static: my-static-handler)
+(define auth-handler
+ (handler ((headers :>headers)) <- (_ :>)
+          (let ((auth (assget "Authorization" headers)))
+            (if auth
+                "Authorized!"
+                (rejection 'unauthorized "Missing Authorization header")))))
 #+end_src
 
-** Custom Static File Handling
-Static file serving can be customized with more complex rules:
+As explained before, a rejection means that "this handler cannot process this request, another should try".
+
+It is not a mechanism to return errors to the user, use plain responses with e.g =(respond-with ...)= for that.
+
+*** Custom Error Handler
+Provide a custom error handler to =run-server=:
+
+#+begin_src scheme
+(define (my-error-handler rejection)
+ (case (rejection-type rejection)
+   ((not-found)   "404 - Not here!")
+   ((forbidden)   "403 - No entry!")
+   ((unauthorized) "401 - Who are you?")
+   (else "500 - Oops!")))
+
+(run-server routes
+          port: 8080
+          recovery: my-error-handler)
+#+end_src
+
+*** Built-in Rejection Types
+Built-in is a strong word, since I just made them the fuck up
+
+- =not-found= - Resource not found
+- =invalid-json= - JSON parsing failed
+- =invalid-form= - Form data parsing failed
+- =unauthorized= - Authentication required
+- =forbidden= - Authorization failed
+- =invalid-conv= - Parameter conversion failed
+- =mismatched= - URL pattern mismatch
+- =exception= - Uncaught exception
+
+** Static File Handling
+
+*** Default Static Handler
+By default, static files are served from =./static/= directory:
+
+#+begin_src scheme
+;; Files from ./static/ are served at /static/*
+(run-server routes port: 8080)
+;; e.g., ./static/style.css -> /static/style.css
+#+end_src
+
+*** Custom Static Handler
+Override the default static file handling:
 
 #+begin_src scheme
 (define (my-static-handler path)
  (cond
-   ((string-prefix? "/assets/" path)
-    (file-path (string-append "./public" path)))
-   ((string-prefix? "/downloads/" path)
-    (file-path (string-append "./files" path)))
-   (else
-    (rejection 'not-found "Static file not found"))))
+  ((string-prefix? "/assets/" path)
+   (file-path (string-append "./public" path)))
+  ((string-prefix? "/downloads/" path)
+   (file-path (string-append "./files" path)))
+  (else
+   (rejection 'not-found "Static file not found"))))
 
 (run-server routes
- port: 8080
- static: my-static-handler)
+            port: 8080
+            static: my-static-handler)
 #+end_src
 
-** Error Handling
-Custom error handling can be provided:
+** Server Configuration
 
+*** run-server Options
 #+begin_src scheme
-(define my-error-handler
-  (lambda (rejection)
-    (case (rejection-type rejection)
-      ((not-found)  "404 - Page not found")
-      ((forbidden)  "403 - Access denied")
-      (else "500 - Server error"))))
-
 (run-server routes
-port: 8080
-recovery: my-error-handler)
+            port: 8080                ;; default: 8080
+            address: "127.0.0.1"      ;; default: "127.0.0.1"
+            static: my-static-handler ;; default: 'default
+            recovery: my-error-handler);; default: 'default
 #+end_src
 
-** HTML Templates with SHSX
-smart-httpd works great with SHSX for HTML templating:
+** Complete API Reference
 
+*** Core Types
+
+**** <rejection>
 #+begin_src scheme
-(import :smart-httpd
-      :shsx/lib)
+(define-record-type <rejection>
+ (rejection type msg)
+ rejection?
+ (type rejection-type)  ;; symbol
+ (msg  rejection-msg))  ;; string
+#+end_src
 
-(define template-handler
-  (handler ((name :>string)) <- (_ :>)
-           (render-html
-            (shsx
-             (html:
-              (head:
-               (title: "Greeting"))
-              (body:
-               (h1: "Hello, " ,name "!")
-               (p: "Welcome to our site")
-               ,(@when (string=? name "admin")
-                  (div: class: "admin-panel"
-                        (p: "Admin controls here")))))))))
+**** <request-cookie>
+#+begin_src scheme
+(define-record-type <request-cookie>
+ (make-request-cookie name value)
+ request-cookie?
+ (name  request-cookie-name)   ;; string
+ (value request-cookie-value)) ;; string
+#+end_src
 
+**** <set-cookie>
+#+begin_src scheme
+(define-record-type <set-cookie>
+ (make-set-cookie name value attrs flags)
+ set-cookie?
+ (name  set-cookie-name)   ;; string
+ (value set-cookie-value)  ;; string
+ (attrs set-cookie-attrs)  ;; hash-table
+ (flags set-cookie-flags)) ;; list
+#+end_src
+
+**** <response>
+#+begin_src scheme
+(define-record-type <response>
+ (make-response body headers status)
+ response?
+ (body    response-body)         ;; string
+ (headers response-headers)      ;; alist
+ (status  response-status-code)) ;; number
+#+end_src
+
+*** Handler API
+
+**** Handler Syntax
+#+begin_src scheme
+(handler ((param1 converter1) (param2 converter2)...) <- (body body-converter)
+       body ...)
+#+end_src
+
+**** Parameter Extractors
+- =:>= or =:>string= - Identity function
+- =:>number= - Convert to number
+- =:>symbol= - Convert to symbol
+- =:>keyword= - Convert to keyword
+- =:>uuid= - Convert to UUID
+- =:>json= - Parse JSON to hash-table
+- =:>form= - Parse form data to hash-table
+- =:>cookies= - Parse cookies to list
+- =:>headers= - Access request headers. Ideally, you should have smarter header extractors
+
+**** Cookie Functions
+#+begin_src scheme
+;; Find cookie by name
+(find-cookie cookies name) -> <request-cookie>
+
+;; Get cookie value directly
+(find-cookie-val cookies name) -> string
+
+;; Parse cookie string
+(parse-cookies str) -> (list-of <request-cookie>)
+
+;; Convert set-cookie to string
+(set-cookie->string cookie) -> string
+#+end_src
+
+*** Routing API
+
+**** Route Helpers
+#+begin_src scheme
+;; Basic routing
+(get    path handler [headers]) -> route
+(post   path handler [headers]) -> route
+(put    path handler [headers]) -> route
+(patch  path handler [headers]) -> route
+(delete path handler [headers]) -> route
+
+;; where:
+;; path    = string
+;; handler = function
+;; headers = (list-of string) ; required headers
+#+end_src
+
+*** Response API
+
+**** Response Builder
+#+begin_src scheme
+(respond-with
+  (:status code)    ; HTTP status code
+  (:header k v)     ; Add header, can be repeated
+  (:cookie name v)  ; Set cookie
+  (:body content))  ; Response body
+#+end_src
+
+These are the following base types:
+- =(:status code)=
+- =(:header k v)=
+- =(:body content)=
+
+Others are implemented in terms of the three above. You can make your own.
+
+**** File Response
+#+begin_src scheme
+(file-path path) -> <file-path>
+#+end_src
+
+**** String Response
+Just return a string from the handler bro
+
+**** Pair and list Response
+You can return a pair of status and string.
+
+Or a triplet of status, string and headers
+
+*** Server API
+
+**** Server Configuration
+#+begin_src scheme
+(run-server routes
+            port: number         ; default: 8080
+            address: string      ; default: "127.0.0.1"
+            static: handler/'default
+            recovery: handler/'default)
+#+end_src
+
+** Examples
+
+*** Complete Application Example
+#+begin_src scheme
+(import :smart-httpd)
+
+;; Handlers
+(define get-user-handler
+ (handler ((id :>number) (headers :>headers)) <- (_ :>)
+          (respond-with
+           (:status 200)
+           (:header "Content-Type" "application/json")
+           (:body (string-append "{\"id\": " (number->string id) "}")))))
+
+(define create-user-handler
+ (handler ((headers :>headers)) <- (body :>json)
+          (let ((name (hash-ref body 'name)))
+            (respond-with
+             (:status 201)
+             (:header "Content-Type" "application/json")
+             (:body (string-append "{\"created\": \"" name "\"}"))))))
+
+;; Static handler
+(define (static-handler path)
+ (cond
+  ((string-prefix? "/public/" path)
+   (file-path (string-append "." path))) ;; this is a terribly unsafe example, btw
+  (else
+   (rejection 'not-found "File not found"))))
+
+;; Error handler
+(define (error-handler rejection)
+ (let ((type (rejection-type rejection))
+       (msg  (rejection-msg rejection)))
+   (respond-with
+    (:status (case type
+               ((not-found) 404)
+               ((unauthorized) 401)
+               (else 500)))
+    (:header "Content-Type" "application/json")
+    (:body (string-append
+            "{\"error\": \""
+            (symbol->string type)
+            "\", \"message\": \""
+            msg
+            "\"}")))))
+
+;; Routes
 (define routes
-  (list
-    (get "/greet/:name" template-handler)))
+ (list
+  (get  "/users/:id" get-user-handler)
+  (post "/users" create-user-handler '("Content-Type"))))
 
-(run-server routes port: 8080)
+;; Run server
+(run-server routes
+          port: 8080
+          static: static-handler
+          recovery: error-handler)
 #+end_src
-
-SHSX provides a clean syntax for generating HTML with full Scheme integration.
-See the [[https://github.com/luciusmagn/shsx][SHSX documentation]] for more details about templating features.
 
 ** License
 Fair License
