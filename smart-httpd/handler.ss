@@ -110,6 +110,7 @@
 (defrules handler (<-)
   ((handler ((var conv) ...) <- (body bconv) statements statements* ...)
    (lambda (active-segments body-data headers)
+     (displayln "handler executing")
      (define ptr
        (list-copy active-segments))
 
