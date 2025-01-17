@@ -148,7 +148,7 @@
                        (displayln "list state before:")
                        (displayln ptr)
                        (displayln "trying to call it")
-                       (let ((computed ((extractor-fn conv) (pop-pth))))
+                       (let ((computed ((extractor-fn conv) (pop-ptr))))
                          (displayln "we got value:")
                          (displayln computed)
                          (validate computed)))
