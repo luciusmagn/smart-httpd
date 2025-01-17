@@ -111,6 +111,11 @@
   ((handler ((var conv) ...) <- (body bconv) statements statements* ...)
    (lambda (active-segments body-data headers)
      (displayln "handler executing")
+     (displayln "on me:")
+     (displayln active-segments)
+     (displayln body-data)
+     (displayln headers)
+     (displayln "on me done.")
      (define ptr
        (list-copy active-segments))
 
