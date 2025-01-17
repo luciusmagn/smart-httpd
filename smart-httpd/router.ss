@@ -115,8 +115,10 @@
                                                     body
                                                     headers)))
                                       by-headers)))
-          (when (= (length with-segments) 0)
+          (cond
+           ((= (length with-segments) 0)
             (displayln "No initially matching handlers"))
+           (else (printf "Found matching handlers ~a\n" (length with-segments))))
 
           (define (exec-handlers)
             (call/cc
