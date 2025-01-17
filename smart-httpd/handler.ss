@@ -148,10 +148,10 @@
                        (displayln "list state before:")
                        (displayln ptr)
                        (displayln "trying to call it")
-                       (let ((computed ((extractor-fn conv) (pop-ptr))))
+                       (let ((param-val (pop-ptr)))
                          (displayln "we got value:")
-                         (displayln computed)
-                         (validate computed)))
+                         (displayln param-val)
+                         (validate ((extractor-fn conv) param-val))))
                       ((headers-extractor? conv)
                        (displayln "headers")
                        (try
