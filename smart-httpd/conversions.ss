@@ -47,7 +47,7 @@
 ;; handler conversions
 ;; :> is identity, because we always need something
 (define-segment-extractor  :>            (lambda (x) x))
-(define-segment-extractor  :>string      :>) ; yeah
+(define-segment-extractor  :>string      (extractor-fn :>)) ; yeah
 (define-segment-extractor  :>number      string->number)
 (define-segment-extractor  :>keyword     string->keyword)
 (define-segment-extractor  :>symbol      string->symbol)
