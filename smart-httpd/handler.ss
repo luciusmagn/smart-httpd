@@ -145,6 +145,8 @@
                        (displayln "segment")
                        (displayln "trying to get function")
                        (displayln (extractor-fn conv))
+                       (displayln "list state before:")
+                       (displayln ptr)
                        (displayln "trying to call it")
                        (validate ((extractor-fn conv) (pop-ptr))))
                       ((headers-extractor? conv)
