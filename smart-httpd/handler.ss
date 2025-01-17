@@ -128,9 +128,16 @@
        (lambda (reject)
          (define (validate converted)
            (cond
-            ((boolean?   converted) (when (not converted) (reject converted)))
-            ((rejection? converted) (reject converted))
-            (else converted)))
+            ((boolean?   converted)
+             (when (not converted)
+               (displayln "failed validation")
+               (reject converted)))
+            ((rejection? converted)
+             (displayln "failed validation")
+             (reject converted))
+            (else
+             (displayln "validated")
+             converted)))
 
          (try
           (let ((var (cond
