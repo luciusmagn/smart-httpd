@@ -60,6 +60,23 @@
         (append (flatten-rec first) (flatten-rec rest))
         (cons first (flatten-rec rest))))))
 
+(define (sanitize-static-path url-path)
+  (define (directory-exists? path)
+    (and
+      (file-exists? path)
+      (eq? 'directory (file-type path))))
+
+  (let ((cleaned (string-trim-prefix "/static/" url-path)))
+    (cond
+     ((string-contains cleaned "..") #f)  ; reject path traversal attempts
+     ((directory-exists? (string-append "./static/" cleaned))
+      #f) ;; TODO: implement proper rejection for directories
+
+     (else (let ((final-path (string-append "./static/" cleaned)))
+             (if (file-exists? final-path)
+               (file-path (final-path))
+               #f))))))
+
 ;; routes is a list of list|route (will be recursively flattened)
 ;; static-handler is either 'default, or a handler that takes a path
 ;; recovery is either 'default, or a function that takes a rejection, and produces a response
@@ -143,6 +160,7 @@
                           ;; - (status . body)
                           ;; - (status headers body)
                           ;; - a rejection
+                          ;; - a composed response via (respond-with ...)
                           (process-response resolve result res))))))
                 ;; we return from the continuation on success
                 ;; so we resolve with a failure if we didnt
