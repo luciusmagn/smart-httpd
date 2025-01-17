@@ -99,12 +99,12 @@
 
 (define (spec->string spec)
   (call-with-output-string
-   (lambda (port)
-     (display (handler-spec-method spec) port)
-     (display " " port)
-     (display (handler-spec-path   spec) port)
-     (display " " port)
-     (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
+    (lambda (port)
+      (display (handler-spec-method spec) port)
+      (display " " port)
+      (display (handler-spec-path   spec) port)
+      (display " " port)
+      (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
 
 (define (define-route method path headers handler)
   (vector (list->vector (parse-path path)) (handler-spec method path headers handler)))
@@ -123,10 +123,10 @@
 (defrules handler (<-)
   ((handler ((var conv) ...) <- (body bconv) statements statements* ...)
    (lambda (active-segments body-data headers)
-     (def ptr
+     (define ptr
        (list-copy active-segments))
 
-     (def (pop-ptr)
+     (define (pop-ptr)
        (let ((elem (car ptr)))
          (set! ptr (cdr ptr))
          elem))
