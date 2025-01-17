@@ -144,6 +144,9 @@
                   (let* ((spec    (car handler-pair))
                          (handler (handler-spec-handler spec))
                          (params  (cdr handler-pair)))
+                    (displayln "Trying with path:")
+                    (displayln (handler-spec-path spec))
+
                     (call/cc
                       (lambda (continue)
                         (let ((result (apply handler params)))
@@ -174,7 +177,8 @@
           (let ((reso (exec-handlers)))
             (unless (resolution-resolved? reso)
               (let ((static-result (static-handler path)))
-                (if (rejection? static-result)
+                (if (or (rejection? static-result)
+                        (not static-result))
                   (let ((error-response (recovery-handler (rejection 'not-found
                                                                      "No response was found to your request"))))
                     (http-response-write res 404 '() error-response))
