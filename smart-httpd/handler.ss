@@ -9,26 +9,28 @@
         :std/format
         :std/srfi/9
         :std/srfi/13
+        :lho/fxns/lib
         ./conversions
         ./response
         ./rejection)
 (export #t)
 
-(define (extract-params pattern url)
-  (define pat-parts
-    (filter (lambda (x) (not (equal? x "")))
-            (string-split pattern #\/)))
-  (define url-parts
-    (filter (lambda (x) (not (equal? x "")))
-            (string-split url #\/)))
+(fn :ret extract-params ((pattern : string?) (url : string?) -> (list-of string?))
+    (define pat-parts
+      (filter (lambda (x) (not (equal? x "")))
+              (string-split pattern #\/)))
 
-  (if (not (= (length pat-parts) (length url-parts)))
-    (rejection 'mismatched "Wrong number of URL segments")
-    (filter-map (lambda (pat url-part)
-                  (and (char=? (string-ref pat 0) #\:)
-                       url-part))
-                pat-parts
-                url-parts)))
+    (define url-parts
+      (filter (lambda (x) (not (equal? x "")))
+              (string-split url #\/)))
+
+    (if (not (= (length pat-parts) (length url-parts)))
+      (rejection 'mismatched "Wrong number of URL segments")
+      (filter-map (lambda (pat url-part)
+                    (and (char=? (string-ref pat 0) #\:)
+                         url-part))
+                  pat-parts
+                  url-parts)))
 
 (define-record-type <segment-exact>
   (segment-exact   name)
@@ -40,41 +42,48 @@
   segment-dynamic?
   (name            segment-dynamic-name))
 
-(define (segment-type segment)
-  (cond
-   ((segment-exact?   segment) 'exact)
-   ((segment-dynamic? segment) 'dynamic)
-   (else #f)))
+(fn :ret segment-type ((segment : [segment-exact? segment-dynamic?]) -> symbol?)
+    (cond
+     ((segment-exact?   segment) 'exact)
+     ((segment-dynamic? segment) 'dynamic)
+     (else #f)))
 
-(define (parse-path path)
-  (define (parse segment)
-    (if (string-prefix? ":" segment)
-      (segment-dynamic segment)
-      (segment-exact   segment)))
+(fn :ret segment? ((s : any?) -> boolean?)
+    (cond
+     ((segment-exact?   segment) #t)
+     ((segment-dynamic? segment) #t)
+     (else #f)))
 
-  (let* ((cleaned  (if (string-prefix? "/" path)
-                     (list->string (cdr (string->list path)))
-                     path))
-         (segments (string-split cleaned #\/))
-         (parsed   (map parse segments)))
-    parsed))
+;; TODO: add multiple choice to list-of support
+(fn :ret parse-path ((path : string?) -> list?)
+    (fn :r parse ((segment : string?) -> segment?)
+        (if (string-prefix? ":" segment)
+          (segment-dynamic segment)
+          (segment-exact   segment)))
 
-(define (print-path path)
-  (if (null? path)
-    (displayln "end")
-    (let ((current (car path)))
-      (cond
-       ((segment-exact?   current)
-        (display   "  exact: ")
-        (displayln (segment-exact-name   current)))
+    (let* ((cleaned  (if (string-prefix? "/" path)
+                       (list->string (cdr (string->list path)))
+                       path))
+           (segments (string-split cleaned #\/))
+           (parsed   (map parse segments)))
+      parsed))
 
-       ((segment-dynamic? current)
-        (display   "dynamic: ")
-        (displayln (segment-dynamic-name current)))
+(fn :ret print-path ((path : (list-of segment?)) -> void?)
+    (if (null? path)
+      (displayln "end")
+      (let ((current (car path)))
+        (cond
+         ((segment-exact?   current)
+          (display   "  exact: ")
+          (displayln (segment-exact-name   current)))
 
-       (else (displayln "invalid segment")))
+         ((segment-dynamic? current)
+          (display   "dynamic: ")
+          (displayln (segment-dynamic-name current)))
 
-      (print-path (cdr path)))))
+         (else (displayln "invalid segment")))
+
+        (print-path (cdr path)))))
 
 (define-record-type <handler-spec>
   (handler-spec method path headers handler)
@@ -84,22 +93,23 @@
   (headers handler-spec-headers)
   (handler handler-spec-handler))
 
-(define (spec->string spec)
-  (call-with-output-string
-    (lambda (port)
-      (display (handler-spec-method spec) port)
-      (display " " port)
-      (display (handler-spec-path   spec) port)
-      (display " " port)
-      (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
+(fn :ret spec->string ((spec : handler-spec?) -> string?)
+    (call-with-output-string
+      (lambda (port)
+        (display (handler-spec-method spec) port)
+        (display " " port)
+        (display (handler-spec-path   spec) port)
+        (display " " port)
+        (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
 
-(define (define-route method path headers handler)
-  (vector (list->vector (parse-path path)) (handler-spec method path headers handler)))
+;; TODO: better type for headers, result
+(fn :ret define-route ((method : symbol?) (path : string?) (headers : list?) (handler : procedure?) -> vector?)
+    (vector (list->vector (parse-path path)) (handler-spec method path headers handler)))
 
-(define (method-helper method)
-  (case-lambda
-    ((path handler headers) (define-route method path headers handler))
-    ((path handler)         (define-route method path '() handler))))
+(fn :ret method-helper ((method : symbol?) -> procedure?)
+    (case-lambda
+      ((path handler headers) (define-route method path headers handler))
+      ((path handler)         (define-route method path '() handler))))
 
 (define get    (method-helper 'GET))
 (define put    (method-helper 'PUT))
