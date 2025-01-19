@@ -75,7 +75,7 @@
 
        (else (let ((final-path (string-append "./static/" cleaned)))
                (if (file-exists? final-path)
-                 (file-path (final-path))
+                 (file-path final-path)
                  #f))))))
 
 ;; routes is a list of list|route (will be recursively flattened)
