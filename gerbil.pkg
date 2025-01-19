@@ -1,1 +1,1 @@
-(package: lho)
+(package: lho depend: ("github.com/luciusmagn/fxns"))
