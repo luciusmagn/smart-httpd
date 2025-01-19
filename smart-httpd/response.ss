@@ -11,6 +11,7 @@
         :std/srfi/9
         :std/srfi/1
         :std/srfi/13
+        :lho/fxns/lib
         ./conversions
         ./rejection
         ./resolution
@@ -45,11 +46,12 @@
   response-status?
   (code response-status))
 
-(define (:cookie name value)
-  ;; TODO: Set reasonable defaults, allow adding attributes and flags
-  (let ((cookie (make-set-cookie name value (make-hash-table) '())))
-    (:header "Set-Cookie" (set-cookie->string cookie))))
+(fn :ret :cookie ((name : string?) (value : string?) -> response-header?)
+    ;; TODO: Set reasonable defaults, allow adding attributes and flags
+    (let ((cookie (make-set-cookie name value (make-hash-table) '())))
+      (:header "Set-Cookie" (set-cookie->string cookie))))
 
+;; TODO: figure out what to do with this (fxns)
 (define (respond-with . forms)
   (displayln "brongus")
   (let loop ((forms forms)
@@ -78,30 +80,30 @@
           (displayln "write status")
           (loop rest body headers (response-status form))))))))
 
-(define (process-response resolve response res)
-  (cond
-   ((string? response)
-    (http-response-write res 200 '() response)
-    (resolve (resolution #t '())))
-   ((file-path? response)
-    (http-response-file res '() (file-path-get response))
-    (resolve (resolution #t '())))
-   ((pair? response)
-    (if (list? response)
-      ;; (status headers body)
-      (let ((status   (car   response))
-            (headers  (cadr  response))
-            (body     (caddr response)))
-        (http-response-write res status headers body))
-      ;; (status . body)
-      (let ((status   (car   response))
-            (body     (cdr   response)))
-        (http-response-write res status '() body)))
-    (resolve (resolution #t '())))
-   ((response? response)
-    (displayln "writing response")
-    (http-response-write res
-                         (response-status-code response)
-                         (response-headers     response)
-                         (response-body        response))
-    (resolve (resolution #t '())))))
+(fn :ret process-response ((resolve : procedure?) (response : response?) (res : http-response?) -> resolution?)
+    (cond
+     ((string? response)
+      (http-response-write res 200 '() response)
+      (resolve (resolution #t '())))
+     ((file-path? response)
+      (http-response-file res '() (file-path-get response))
+      (resolve (resolution #t '())))
+     ((pair? response)
+      (if (list? response)
+        ;; (status headers body)
+        (let ((status   (car   response))
+              (headers  (cadr  response))
+              (body     (caddr response)))
+          (http-response-write res status headers body))
+        ;; (status . body)
+        (let ((status   (car   response))
+              (body     (cdr   response)))
+          (http-response-write res status '() body)))
+      (resolve (resolution #t '())))
+     ((response? response)
+      (displayln "writing response")
+      (http-response-write res
+                           (response-status-code response)
+                           (response-headers     response)
+                           (response-body        response))
+      (resolve (resolution #t '())))))
