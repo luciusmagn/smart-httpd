@@ -48,7 +48,7 @@
      ((segment-dynamic? segment) 'dynamic)
      (else #f)))
 
-(fn :ret segment? ((s : any?) -> boolean?)
+(fn :ret segment? ((segment : any?) -> boolean?)
     (cond
      ((segment-exact?   segment) #t)
      ((segment-dynamic? segment) #t)
