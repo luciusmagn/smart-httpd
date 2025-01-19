@@ -26,30 +26,3 @@
 (export (import: ./handler))
 (export (import: ./server))
 (export #t)
-
-
-;;(define add-two
-;;  (handler ((x :>number) (y :>number)) <- (_ :>)
-;;           (displayln x)
-;;           (displayln y)
-;;           (+ x y)))
-
-
-;;(define (user-handler)  (void))
-;;(define (posts-handler) (void))
-;;
-;;(define test-treee (build-route-tree
-;;                    `(((,(segment-exact "users")
-;;                        ,(segment-dynamic "id"))
-;;                       ,user-handler)
-;;                      ((,(segment-exact "posts"))))))
-;;                       ,posts-handler))))
-;;
-;;(define test-tree2 (build-route-tree
-;;                    (list
-;;                     (get  "/users/:id" user-handler)
-;;                     (post "/users/:id" user-handler)
-;;                     (get  "/posts"     posts-handler))))
-;;                     (post "/"          user-handler))))
-
-
