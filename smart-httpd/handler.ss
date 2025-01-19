@@ -35,7 +35,7 @@
 (define-record-type <segment-exact>
   (segment-exact   name)
   segment-exact?
-  (name          segment-exact-name))
+  (name            segment-exact-name))
 
 (define-record-type <segment-dynamic>
   (segment-dynamic name)
