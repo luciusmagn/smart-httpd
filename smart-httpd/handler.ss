@@ -128,7 +128,9 @@
      (displayln headers)
      (displayln "on me done.")
      ;; TODO: we do not support binary now lol
-     (define body-data (utf8->string rawbody-data))
+     (define body-data (if rawbody-data
+                         (utf8->string rawbody-data)
+                         #f))
      (define ptr
        (list-copy active-segments))
 
