@@ -15,7 +15,8 @@
         ./conversions
         ./rejection
         ./resolution
-        ./cookie)
+        ./cookie
+        ./utils)
 (export #t)
 
 (define-record-type <file-path>
@@ -56,33 +57,32 @@
       (:header "Set-Cookie" (set-cookie->string cookie))))
 
 ;; TODO: figure out what to do with this (fxns)
-(define (respond-with . forms)
-  (displayln "brongus")
-  (let loop ((forms forms)
-             (body "")
-             (headers '())
-             (status 200))
-    (displayln forms)
-    (if (null? forms)
-      (begin
-        (displayln "finished response")
-        (make-response body headers status))
-      (let ((form (car forms))
-            (rest (cdr forms)))
-        (cond
-         ((response-body? form)
-          (displayln "write body")
-          (loop rest (response-body-content form) headers status))
-         ((response-header? form)
-          (displayln "write header")
-          (loop rest body
-                (cons (cons (response-header-name form)
-                            (response-header-value form))
-                      headers)
-                status))
-         ((response-status? form)
-          (displayln "write status")
-          (loop rest body headers (response-status form))))))))
+(define (respond-with . rawforms)
+  (let ((forms (flatten-rec rawforms)))
+    (let loop ((forms forms)
+               (body "")
+               (headers '())
+               (status 200))
+      (displayln forms)
+      (if (null? forms)
+        (begin
+          (make-response body headers status))
+        (let ((form (car forms))
+              (rest (cdr forms)))
+          (cond
+           ((response-body? form)
+            (displayln "write body")
+            (loop rest (response-body-content form) headers status))
+           ((response-header? form)
+            (displayln "write header")
+            (loop rest body
+                  (cons (cons (response-header-name form)
+                              (response-header-value form))
+                        headers)
+                  status))
+           ((response-status? form)
+            (displayln "write status")
+            (loop rest body headers (response-status form)))))))))
 
 (fn :ret process-response ((resolve : procedure?) (response : response?) (res : http-response?) -> resolution?)
     (cond

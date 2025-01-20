@@ -19,7 +19,8 @@
         ./handler
         ./response
         ./resolution
-        ./rejection)
+        ./rejection
+        ./utils)
 (export #t)
 
 (fn :ret error-template ((status : string?) (message : string?) -> string?)
@@ -52,14 +53,6 @@
           (every (lambda (pair) (apply match-segment pair))
                  (zip route-segments path-segments))))))
 
-(fn :ret flatten-rec ((lst : list?) -> list?)
-    (if (null? lst)
-      '()
-      (let ((first (car lst))
-            (rest (cdr lst)))
-        (if (list? first)
-          (append (flatten-rec first) (flatten-rec rest))
-          (cons first (flatten-rec rest))))))
 
 (fn :ret sanitize-static-path ((url-path : string?) -> (or-false? file-path?))
     (fn :r directory-exists? ((path : string?) -> boolean?)

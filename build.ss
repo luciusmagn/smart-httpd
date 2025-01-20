@@ -12,4 +12,5 @@
     "smart-httpd/response"
     "smart-httpd/resolution"
     "smart-httpd/handler"
+    "smart-httpd/utils"
     (exe: "smart-httpd/main" bin: "smart-httpd")))
