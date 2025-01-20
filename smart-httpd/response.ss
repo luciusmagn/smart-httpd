@@ -48,7 +48,11 @@
 
 (fn :ret :cookie ((name : string?) (value : string?) -> response-header?)
     ;; TODO: Set reasonable defaults, allow adding attributes and flags
-    (let ((cookie (make-set-cookie name value (make-hash-table) '())))
+    (let ((cookie (make-set-cookie
+                   name
+                   value
+                   (plist->hash-table '("Path" "/"))
+                   '())))
       (:header "Set-Cookie" (set-cookie->string cookie))))
 
 ;; TODO: figure out what to do with this (fxns)

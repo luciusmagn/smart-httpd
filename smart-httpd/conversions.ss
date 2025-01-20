@@ -8,6 +8,7 @@
         :std/misc/func
         :std/misc/string
         :std/format
+
         :std/srfi/9
         :std/srfi/1
         :std/srfi/13
@@ -66,10 +67,7 @@
 (define-headers-extractor
   :>cookies
   (lambda (headers)
-    (displayln "DEBUG: reading cookie...")
     (let ((str (assget "Cookie" headers)))
-      (displayln "COOOOOOOOOOOOOOOOOOOKIE")
-      (displayln str)
       (if (string? str)
         (parse-cookies str)
         '()))))
