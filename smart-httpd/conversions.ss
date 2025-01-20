@@ -4,6 +4,7 @@
         :std/net/httpd
         :std/net/uri
         :std/text/json
+        :std/text/utf8
         :std/misc/uuid
         :std/misc/func
         :std/misc/string
@@ -79,9 +80,12 @@
 
 (define-body-extractor
   :>form
-  (lambda (body)
+  (lambda (rawbody)
     (displayln "BRODYYYYY")
+    (displayln rawbody)
+    (define body (utf8->string rawbody))
     (displayln body)
+
     (try
      (if (string? body)
        (let ((pairs (form-url-decode body)))
