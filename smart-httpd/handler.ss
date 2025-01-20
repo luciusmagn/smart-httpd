@@ -3,6 +3,7 @@
         :std/net/httpd
         :std/net/uri
         :std/text/json
+        :std/text/utf8
         :std/misc/uuid
         :std/misc/func
         :std/misc/string
