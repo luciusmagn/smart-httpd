@@ -95,12 +95,12 @@
 
 (fn :ret spec->string ((spec : handler-spec?) -> string?)
     (call-with-output-string
-      (lambda (port)
-        (display (handler-spec-method spec) port)
-        (display " " port)
-        (display (handler-spec-path   spec) port)
-        (display " " port)
-        (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
+     (lambda (port)
+       (display (handler-spec-method spec) port)
+       (display " " port)
+       (display (handler-spec-path   spec) port)
+       (display " " port)
+       (display (string-join (map (lambda (h) (format "~a" h)) (handler-spec-headers spec))) port))))
 
 ;; TODO: better type for headers, result
 (fn :ret define-route ((method : symbol?) (path : string?) (headers : list?) (handler : procedure?) -> vector?)
