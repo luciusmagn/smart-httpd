@@ -80,12 +80,7 @@
 
 (define-body-extractor
   :>form
-  (lambda (rawbody)
-    (displayln "BRODYYYYY")
-    (displayln rawbody)
-    (define body (utf8->string rawbody))
-    (displayln body)
-
+  (lambda (body)
     (try
      (if (string? body)
        (let ((pairs (form-url-decode body)))

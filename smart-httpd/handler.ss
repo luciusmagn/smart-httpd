@@ -119,13 +119,15 @@
 
 (defrules handler (<-)
   ((handler ((var conv) ...) <- (body bconv) statements statements* ...)
-   (lambda (active-segments body-data headers)
+   (lambda (active-segments rawbody-data headers)
      (displayln "handler executing")
      (displayln "on me:")
      (displayln active-segments)
-     (displayln body-data)
+     (displayln rawbody-data)
      (displayln headers)
      (displayln "on me done.")
+     ;; TODO: we do not support binary now lol
+     (define body-data (utf8->string rawbody-data))
      (define ptr
        (list-copy active-segments))
 
