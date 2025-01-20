@@ -8,7 +8,6 @@
         :std/misc/func
         :std/misc/string
         :std/format
-
         :std/srfi/9
         :std/srfi/1
         :std/srfi/13
@@ -81,6 +80,8 @@
 (define-body-extractor
   :>form
   (lambda (body)
+    (displayln "BRODYYYYY")
+    (displayln body)
     (try
      (if (string? body)
        (let ((pairs (form-url-decode body)))
