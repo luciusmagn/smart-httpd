@@ -63,7 +63,6 @@
                (body "")
                (headers '())
                (status 200))
-      (displayln forms)
       (if (null? forms)
         (begin
           (make-response body headers status))
@@ -71,17 +70,14 @@
               (rest (cdr forms)))
           (cond
            ((response-body? form)
-            (displayln "write body")
             (loop rest (response-body-content form) headers status))
            ((response-header? form)
-            (displayln "write header")
             (loop rest body
                   (cons (cons (response-header-name form)
                               (response-header-value form))
                         headers)
                   status))
            ((response-status? form)
-            (displayln "write status")
             (loop rest body headers (response-status form)))))))))
 
 (fn :ret process-response ((resolve : procedure?) (response : response?) (res : http-response?) -> resolution?)
@@ -105,7 +101,6 @@
           (http-response-write res status '() body)))
       (resolve (resolution #t '())))
      ((response? response)
-      (displayln "writing response")
       (http-response-write res
                            (response-status-code response)
                            (response-headers     response)

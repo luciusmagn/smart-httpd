@@ -141,8 +141,6 @@
                         (let* ((spec    (car handler-pair))
                                (handler (handler-spec-handler spec))
                                (params  (cdr handler-pair)))
-                          (displayln "Trying with path:")
-                          (displayln (handler-spec-path spec))
 
                           (call/cc
                             (lambda (continue)

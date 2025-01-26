@@ -121,12 +121,6 @@
 (defrules handler (<-)
   ((handler ((var conv) ...) <- (body bconv) statements statements* ...)
    (lambda (active-segments rawbody-data headers)
-     (displayln "handler executing")
-     (displayln "on me:")
-     (displayln active-segments)
-     (displayln rawbody-data)
-     (displayln headers)
-     (displayln "on me done.")
      ;; TODO: we do not support binary now lol
      (define body-data (if rawbody-data
                          (utf8->string rawbody-data)
@@ -145,40 +139,25 @@
            (cond
             ((boolean?   converted)
              (when (not converted)
-               (displayln "failed validation")
                (reject converted)))
             ((rejection? converted)
-             (displayln "failed validation")
              (reject converted))
             (else
-             (displayln "validated")
              converted)))
 
          (try
           (let ((var (cond
                       ((segment-extractor? conv)
-                       (displayln "segment")
-                       (displayln "trying to get function")
-                       (displayln (extractor-fn conv))
-                       (displayln "list state before:")
-                       (displayln ptr)
-                       (displayln "trying to call it")
                        (let ((param-val (pop-ptr)))
-                         (displayln "we got value:")
-                         (displayln param-val)
                          (validate ((extractor-fn conv) param-val))))
                       ((headers-extractor? conv)
-                       (displayln "headers")
                        (try
                         (displayln ((extractor-fn conv) headers))
                         (catch (e) (printf "error: ~a\n" e)))
-                       (displayln "headers")
                        (validate ((extractor-fn conv) headers)))
                       ((body-extractor? conv)
-                       (displayln "body")
                        (validate ((extractor-fn conv) body-data)))
                       (else
-                       (displayln "invalid conversion")
                        (reject (rejection 'invalid-conv "Invalid conversion"))))) ...)
             (let ((body (if (string? body-data)
                           ((extractor-fn bconv) body-data)
