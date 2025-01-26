@@ -14,13 +14,11 @@
 
 (define test-handler-file
   (handler () <- (body :>)
-           (displayln "bungus")
            (file-path "index.html")))
 
 (define plus-route
   ;; GET /plus/:x/:y
   (handler ((x :>number) (y :>number)) <- (_ :>)
-           (displayln (+ x y))
            (number->string (+ x y))))
 
 (define respond-with-handler
